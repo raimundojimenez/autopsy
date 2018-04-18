@@ -141,6 +141,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
                 switch (evt.getKey()) {
                     case UserPreferences.HIDE_KNOWN_FILES_IN_DATA_SRCS_TREE:
                     case UserPreferences.HIDE_SLACK_FILES_IN_DATA_SRCS_TREE:
+                    case UserPreferences.SHOW_DEVICE_NODES_IN_DATA_SRCS_TREE:    
                         refreshContentTreeSafe();
                         break;
                     case UserPreferences.HIDE_KNOWN_FILES_IN_VIEWS_TREE:
@@ -772,24 +773,19 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
      * Refresh the content node part of the dir tree safely in the EDT thread
      */
     public void refreshContentTreeSafe() {
-        SwingUtilities.invokeLater(this::refreshDataSourceTree);
+        SwingUtilities.invokeLater(this::refreshTree);
     }
 
     /**
-     * Refreshes changed content nodes
+     * Refreshes the tree
      */
-    private void refreshDataSourceTree() {
+    private void refreshTree() {
         Node selectedNode = getSelectedNode();
         final String[] selectedPath = NodeOp.createPath(selectedNode, em.getRootContext());
-        Children rootChildren = em.getRootContext().getChildren();
-        Node dataSourcesFilterNode = rootChildren.findChild(DataSourcesNode.NAME);
-        if (dataSourcesFilterNode == null) {
-            LOGGER.log(Level.SEVERE, "Cannot find data sources filter node, won't refresh the content tree"); //NON-NLS
-            return;
-        }
-        Node dataSourcesNode = ((DirectoryTreeFilterNode) dataSourcesFilterNode).getOriginal();
-        DataSourcesNode.DataSourcesNodeChildren contentRootChildren = (DataSourcesNode.DataSourcesNodeChildren) dataSourcesNode.getChildren();
-        contentRootChildren.refreshContentKeys();
+        
+        // Redraw the tree
+        contentChildren.refreshContentKeys();
+        
         setSelectedNode(selectedPath, DataSourcesNode.NAME);
     }
 
