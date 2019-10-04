@@ -18,7 +18,9 @@
  */
 package org.sleuthkit.autopsy.modules.interestingitems;
 
+import java.awt.Color;
 import java.awt.event.ActionEvent;
+import java.util.Arrays;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.logging.Level;
@@ -31,6 +33,7 @@ import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;
+import org.sleuthkit.autopsy.corecomponents.TextPrompt;
 import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.modules.filetypeid.FileTypeDetector;
 import org.sleuthkit.autopsy.modules.interestingitems.FilesSetDefsPanel.PANEL_TYPE;
@@ -46,13 +49,17 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         "FilesSetRulePanel.kiloBytes=Kilobytes",
         "FilesSetRulePanel.megaBytes=Megabytes",
         "FilesSetRulePanel.gigaBytes=Gigabytes",
+        "FilesSetRulePanel.nameTextField.fullNameExample=Example: \"file.exe\"",
+        "FilesSetRulePanel.nameTextField.extensionExample=Examples: \"jpg\" or \"jpg,jpeg,gif\"",
         "FilesSetRulePanel.NoConditionError=Must have at least one condition to make a rule.",
         "FilesSetRulePanel.NoMimeTypeError=Please select a valid MIME type.",
         "FilesSetRulePanel.NoNameError=Name cannot be empty",
         "FilesSetRulePanel.NoPathError=Path cannot be empty",
         "FilesSetRulePanel.DaysIncludedEmptyError=Number of days included cannot be empty.",
         "FilesSetRulePanel.DaysIncludedInvalidError=Number of days included must be a positive integer.",
-        "FilesSetRulePanel.ZeroFileSizeError=File size condition value must not be 0 (Unless = is selected)."
+        "FilesSetRulePanel.ZeroFileSizeError=File size condition value must not be 0 (Unless = is selected).",
+        "# {0} - regex",
+        "FilesSetRulePanel.CommaInRegexWarning=Warning: Comma(s) in the file extension field will be interpreted as part of a regex and will not split the entry into multiple extensions (Entered: \"{0}\")",
     })
 
     private static final long serialVersionUID = 1L;
@@ -62,6 +69,7 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
     private static final List<String> ILLEGAL_FILE_PATH_CHARS = FilesSetsManager.getIllegalFilePathChars();
     private JButton okButton;
     private JButton cancelButton;
+    private TextPrompt nameTextFieldPrompt;
 
     /**
      * Constructs a files set rule panel in create rule mode.
@@ -87,6 +95,8 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         this.dateCheckActionPerformed(null);
         populateComponentsWithDefaultValues();
         this.setButtons(okButton, cancelButton);
+        
+        updateNameTextFieldPrompt();
     }
 
     /**
@@ -120,6 +130,35 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         populatePathConditionComponents(rule);
         populateDateConditionComponents(rule);
         this.setButtons(okButton, cancelButton);
+        
+        updateNameTextFieldPrompt();
+        setComponentsForSearchType();
+    }
+    
+    /**
+     * Update the text prompt of the name text field based on the input type
+     * selection.
+     */
+    private void updateNameTextFieldPrompt() {
+        /**
+         * Add text prompt to the text field.
+         */
+        String text;
+        if (fullNameRadioButton.isSelected()) {
+            text = Bundle.FilesSetRulePanel_nameTextField_fullNameExample();
+        } else {
+            text = Bundle.FilesSetRulePanel_nameTextField_extensionExample();
+        }
+        nameTextFieldPrompt = new TextPrompt(text, nameTextField);
+        
+        /**
+         * Sets the foreground color and transparency of the text prompt.
+         */
+        nameTextFieldPrompt.setForeground(Color.LIGHT_GRAY);
+        nameTextFieldPrompt.changeAlpha(0.9f); // Mostly opaque
+        
+        validate();
+        repaint();
     }
 
     /**
@@ -322,6 +361,16 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
                 return false;
             }
             if (this.nameRegexCheckbox.isSelected()) {
+                
+                // If extension is also selected and the regex contains a comma, display a warning
+                // since it is unclear whether the comma is part of a regex or is separating extensions.
+                if (this.extensionRadioButton.isSelected() && this.nameTextField.getText().contains(",")) {
+                    NotifyDescriptor notifyDesc = new NotifyDescriptor.Message(
+                            Bundle.FilesSetRulePanel_CommaInRegexWarning(this.nameTextField.getText()),
+                            NotifyDescriptor.WARNING_MESSAGE);
+                    DialogDisplayer.getDefault().notify(notifyDesc);
+                }
+                
                 try {
                     Pattern.compile(this.nameTextField.getText());
                 } catch (PatternSyntaxException ex) {
@@ -435,7 +484,7 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         if (!this.nameTextField.getText().isEmpty()) {
             if (this.nameRegexCheckbox.isSelected()) {
                 try {
-                    Pattern pattern = Pattern.compile(this.nameTextField.getText());
+                    Pattern pattern = Pattern.compile(this.nameTextField.getText(), Pattern.CASE_INSENSITIVE);
                     if (this.fullNameRadioButton.isSelected()) {
                         condition = new FilesSet.Rule.FullNameCondition(pattern);
                     } else {
@@ -449,7 +498,12 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
                 if (this.fullNameRadioButton.isSelected()) {
                     condition = new FilesSet.Rule.FullNameCondition(this.nameTextField.getText());
                 } else {
-                    condition = new FilesSet.Rule.ExtensionCondition(this.nameTextField.getText());
+                    List<String> extensions = Arrays.asList(this.nameTextField.getText().split(","));
+                    for (int i=0; i < extensions.size(); i++) {
+                        // Remove leading and trailing whitespace.
+                        extensions.set(i, extensions.get(i).trim());
+                    }
+                    condition = new FilesSet.Rule.ExtensionCondition(extensions);
                 }
             } else {
                 logger.log(Level.SEVERE, "Attempt to get name condition with illegal chars"); // NON-NLS
@@ -520,7 +574,7 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         if (!this.pathTextField.getText().isEmpty()) {
             if (this.pathRegexCheckBox.isSelected()) {
                 try {
-                    condition = new FilesSet.Rule.ParentPathCondition(Pattern.compile(this.pathTextField.getText()));
+                    condition = new FilesSet.Rule.ParentPathCondition(Pattern.compile(this.pathTextField.getText(), Pattern.CASE_INSENSITIVE));
                 } catch (PatternSyntaxException ex) {
                     logger.log(Level.SEVERE, "Attempt to get malformed path condition", ex); // NON-NLS
                     throw new IllegalStateException("The files set rule panel path condition is not in a valid state"); // NON-NLS
@@ -657,10 +711,20 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         nameButtonGroup.add(fullNameRadioButton);
         org.openide.awt.Mnemonics.setLocalizedText(fullNameRadioButton, org.openide.util.NbBundle.getMessage(FilesSetRulePanel.class, "FilesSetRulePanel.fullNameRadioButton.text")); // NOI18N
         fullNameRadioButton.setEnabled(false);
+        fullNameRadioButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                fullNameRadioButtonActionPerformed(evt);
+            }
+        });
 
         nameButtonGroup.add(extensionRadioButton);
         org.openide.awt.Mnemonics.setLocalizedText(extensionRadioButton, org.openide.util.NbBundle.getMessage(FilesSetRulePanel.class, "FilesSetRulePanel.extensionRadioButton.text")); // NOI18N
         extensionRadioButton.setEnabled(false);
+        extensionRadioButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                extensionRadioButtonActionPerformed(evt);
+            }
+        });
 
         org.openide.awt.Mnemonics.setLocalizedText(nameRegexCheckbox, org.openide.util.NbBundle.getMessage(FilesSetRulePanel.class, "FilesSetRulePanel.nameRegexCheckbox.text")); // NOI18N
         nameRegexCheckbox.setEnabled(false);
@@ -782,18 +846,19 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
                                         .addComponent(pathSeparatorInfoLabel))
                                     .addGroup(layout.createSequentialGroup()
                                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(ruleNameTextField)
                                             .addGroup(layout.createSequentialGroup()
                                                 .addComponent(daysIncludedTextField, javax.swing.GroupLayout.PREFERRED_SIZE, 69, javax.swing.GroupLayout.PREFERRED_SIZE)
                                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                                .addComponent(daysIncludedLabel))
-                                            .addComponent(ruleNameTextField, javax.swing.GroupLayout.DEFAULT_SIZE, 249, Short.MAX_VALUE)
-                                            .addGroup(layout.createSequentialGroup()
-                                                .addComponent(fullNameRadioButton)
-                                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                                .addComponent(extensionRadioButton, javax.swing.GroupLayout.PREFERRED_SIZE, 98, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                                .addComponent(nameRegexCheckbox)))
-                                        .addGap(1, 1, 1))))
+                                                .addComponent(daysIncludedLabel)
+                                                .addGap(0, 0, Short.MAX_VALUE)))
+                                        .addGap(1, 1, 1))
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(fullNameRadioButton)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(extensionRadioButton)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(nameRegexCheckbox))))
                             .addComponent(jLabel5)
                             .addGroup(layout.createSequentialGroup()
                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -951,6 +1016,14 @@ final class FilesSetRulePanel extends javax.swing.JPanel {
         }
         this.setOkButton();
     }//GEN-LAST:event_mimeCheckActionPerformed
+
+    private void extensionRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_extensionRadioButtonActionPerformed
+        updateNameTextFieldPrompt();
+    }//GEN-LAST:event_extensionRadioButtonActionPerformed
+
+    private void fullNameRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_fullNameRadioButtonActionPerformed
+        updateNameTextFieldPrompt();
+    }//GEN-LAST:event_fullNameRadioButtonActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton allRadioButton;

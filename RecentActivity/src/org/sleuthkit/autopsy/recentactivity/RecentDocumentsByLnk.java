@@ -29,13 +29,12 @@ import java.util.logging.Level;
 import org.openide.util.NbBundle;
 import org.sleuthkit.autopsy.coreutils.Logger;
 import java.util.Collection;
+import org.openide.util.NbBundle.Messages;
 import org.sleuthkit.autopsy.coreutils.JLNK;
 import org.sleuthkit.autopsy.coreutils.JLnkParser;
 import org.sleuthkit.autopsy.coreutils.JLnkParserException;
 import org.sleuthkit.autopsy.ingest.DataSourceIngestModuleProgress;
 import org.sleuthkit.autopsy.ingest.IngestJobContext;
-import org.sleuthkit.autopsy.ingest.IngestServices;
-import org.sleuthkit.autopsy.ingest.ModuleDataEvent;
 import org.sleuthkit.datamodel.BlackboardArtifact;
 import org.sleuthkit.datamodel.BlackboardArtifact.ARTIFACT_TYPE;
 import org.sleuthkit.datamodel.BlackboardAttribute;
@@ -50,9 +49,12 @@ import org.sleuthkit.datamodel.*;
 class RecentDocumentsByLnk extends Extract {
 
     private static final Logger logger = Logger.getLogger(RecentDocumentsByLnk.class.getName());
-    private IngestServices services = IngestServices.getInstance();
     private Content dataSource;
     private IngestJobContext context;
+    
+    @Messages({
+        "Progress_Message_Extract_Resent_Docs=Recent Documents",
+    })
 
     /**
      * Find the documents that Windows stores about recent documents and make
@@ -81,6 +83,7 @@ class RecentDocumentsByLnk extends Extract {
         }
 
         dataFound = true;
+        List<BlackboardArtifact> bbartifacts = new ArrayList<>();
         for (AbstractFile recentFile : recentFiles) {
             if (context.dataSourceIngestIsCancelled()) {
                 break;
@@ -117,18 +120,22 @@ class RecentDocumentsByLnk extends Extract {
                     NbBundle.getMessage(this.getClass(),
                             "RecentDocumentsByLnk.parentModuleName.noSpace"),
                     recentFile.getCrtime()));
-            this.addArtifact(ARTIFACT_TYPE.TSK_RECENT_OBJECT, recentFile, bbattributes);
+            BlackboardArtifact bba = createArtifactWithAttributes(ARTIFACT_TYPE.TSK_RECENT_OBJECT, recentFile, bbattributes);
+            if(bba != null) {
+                bbartifacts.add(bba);
+            }
         }
-        services.fireModuleDataEvent(new ModuleDataEvent(
-                NbBundle.getMessage(this.getClass(), "RecentDocumentsByLnk.parentModuleName"),
-                BlackboardArtifact.ARTIFACT_TYPE.TSK_RECENT_OBJECT));
+        
+        postArtifacts(bbartifacts);
     }
 
     @Override
-    public void process(Content dataSource, IngestJobContext context) {
+    public void process(Content dataSource, IngestJobContext context, DataSourceIngestModuleProgress progressBar) {
         this.dataSource = dataSource;
         this.context = context;
         dataFound = false;
+        
+        progressBar.progress(Bundle.Progress_Message_Extract_Resent_Docs());
         this.getRecentDocuments();
     }
 }

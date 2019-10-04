@@ -1,7 +1,7 @@
 /*
  * Central Repository
  *
- * Copyright 2015-2017 Basis Technology Corp.
+ * Copyright 2015-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,28 +32,30 @@ import java.util.regex.Pattern;
 import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.coreutils.ModuleSettings;
 import org.sleuthkit.autopsy.coreutils.PlatformUtil;
+import static org.sleuthkit.autopsy.centralrepository.datamodel.AbstractSqlEamDb.SOFTWARE_CR_DB_SCHEMA_VERSION;
 
 /**
  * Settings for the sqlite implementation of the Central Repository database
- * 
- * NOTE: This is public scope because the options panel calls it directly to set/get 
+ *
+ * NOTE: This is public scope because the options panel calls it directly to
+ * set/get
  */
 public final class SqliteEamDbSettings {
 
     private final static Logger LOGGER = Logger.getLogger(SqliteEamDbSettings.class.getName());
-    private final String DEFAULT_DBNAME = "central_repository.db"; // NON-NLS
-    private final String DEFAULT_DBDIRECTORY = PlatformUtil.getUserDirectory() + File.separator + "central_repository"; // NON-NLS
-    private final String JDBC_DRIVER = "org.sqlite.JDBC"; // NON-NLS
-    private final String JDBC_BASE_URI = "jdbc:sqlite:"; // NON-NLS
-    private final String VALIDATION_QUERY = "SELECT count(*) from sqlite_master"; // NON-NLS
-    private static final String PRAGMA_SYNC_OFF = "PRAGMA synchronous = OFF";
-    private static final String PRAGMA_SYNC_NORMAL = "PRAGMA synchronous = NORMAL";
-    private static final String PRAGMA_JOURNAL_WAL = "PRAGMA journal_mode = WAL";
-    private static final String PRAGMA_READ_UNCOMMITTED_TRUE = "PRAGMA read_uncommitted = True";
-    private static final String PRAGMA_ENCODING_UTF8 = "PRAGMA encoding = 'UTF-8'";
-    private static final String PRAGMA_PAGE_SIZE_4096 = "PRAGMA page_size = 4096";
-    private static final String PRAGMA_FOREIGN_KEYS_ON = "PRAGMA foreign_keys = ON";
-    private final String DB_NAMES_REGEX = "[a-z][a-z0-9_]*(\\.db)?";
+    private final static String DEFAULT_DBNAME = "central_repository.db"; // NON-NLS
+    private final static String DEFAULT_DBDIRECTORY = PlatformUtil.getUserDirectory() + File.separator + "central_repository"; // NON-NLS
+    private final static String JDBC_DRIVER = "org.sqlite.JDBC"; // NON-NLS
+    private final static String JDBC_BASE_URI = "jdbc:sqlite:"; // NON-NLS
+    private final static String VALIDATION_QUERY = "SELECT count(*) from sqlite_master"; // NON-NLS
+    private final static String PRAGMA_SYNC_OFF = "PRAGMA synchronous = OFF";
+    private final static String PRAGMA_SYNC_NORMAL = "PRAGMA synchronous = NORMAL";
+    private final static String PRAGMA_JOURNAL_WAL = "PRAGMA journal_mode = WAL";
+    private final static String PRAGMA_READ_UNCOMMITTED_TRUE = "PRAGMA read_uncommitted = True";
+    private final static String PRAGMA_ENCODING_UTF8 = "PRAGMA encoding = 'UTF-8'";
+    private final static String PRAGMA_PAGE_SIZE_4096 = "PRAGMA page_size = 4096";
+    private final static String PRAGMA_FOREIGN_KEYS_ON = "PRAGMA foreign_keys = ON";
+    private final static String DB_NAMES_REGEX = "[a-z][a-z0-9_]*(\\.db)?";
     private String dbName;
     private String dbDirectory;
     private int bulkThreshold;
@@ -95,7 +97,7 @@ public final class SqliteEamDbSettings {
         ModuleSettings.setConfigSetting("CentralRepository", "db.sqlite.dbDirectory", getDbDirectory()); // NON-NLS
         ModuleSettings.setConfigSetting("CentralRepository", "db.sqlite.bulkThreshold", Integer.toString(getBulkThreshold())); // NON-NLS
     }
-    
+
     /**
      * Verify that the db file exists.
      *
@@ -103,11 +105,11 @@ public final class SqliteEamDbSettings {
      */
     public boolean dbFileExists() {
         File dbFile = new File(getFileNameWithPath());
-        if(! dbFile.exists()){
+        if (!dbFile.exists()) {
             return false;
         }
         // It's unlikely, but make sure the file isn't actually a directory
-        return ( ! dbFile.isDirectory());
+        return (!dbFile.isDirectory());
     }
 
     /**
@@ -148,10 +150,11 @@ public final class SqliteEamDbSettings {
 
         return true;
     }
-    
+
     /**
      * Delete the database
-     * @return 
+     *
+     * @return
      */
     public boolean deleteDatabase() {
         File dbFile = new File(this.getFileNameWithPath());
@@ -279,18 +282,6 @@ public final class SqliteEamDbSettings {
         String casesIdx1 = "CREATE INDEX IF NOT EXISTS cases_org_id ON cases (org_id)";
         String casesIdx2 = "CREATE INDEX IF NOT EXISTS cases_case_uid ON cases (case_uid)";
 
-        StringBuilder createDataSourcesTable = new StringBuilder();
-        createDataSourcesTable.append("CREATE TABLE IF NOT EXISTS data_sources (");
-        createDataSourcesTable.append("id integer primary key autoincrement NOT NULL,");
-        createDataSourcesTable.append("case_id integer NOT NULL,");
-        createDataSourcesTable.append("device_id text NOT NULL,");
-        createDataSourcesTable.append("name text NOT NULL,");
-        createDataSourcesTable.append("foreign key (case_id) references cases(id) ON UPDATE SET NULL ON DELETE SET NULL,");
-        createDataSourcesTable.append("CONSTRAINT datasource_unique UNIQUE (case_id, device_id, name)");
-        createDataSourcesTable.append(")");
-
-        String dataSourceIdx1 = "CREATE INDEX IF NOT EXISTS data_sources_name ON data_sources (name)";
-
         StringBuilder createReferenceSetsTable = new StringBuilder();
         createReferenceSetsTable.append("CREATE TABLE IF NOT EXISTS reference_sets (");
         createReferenceSetsTable.append("id integer primary key autoincrement NOT NULL,");
@@ -333,33 +324,13 @@ public final class SqliteEamDbSettings {
         createCorrelationTypesTable.append("CONSTRAINT correlation_types_names UNIQUE (display_name, db_table_name)");
         createCorrelationTypesTable.append(")");
 
-        // Each "%s" will be replaced with the relevant TYPE_instances table name.
-        StringBuilder createArtifactInstancesTableTemplate = new StringBuilder();
-        createArtifactInstancesTableTemplate.append("CREATE TABLE IF NOT EXISTS %s (");
-        createArtifactInstancesTableTemplate.append("id integer primary key autoincrement NOT NULL,");
-        createArtifactInstancesTableTemplate.append("case_id integer NOT NULL,");
-        createArtifactInstancesTableTemplate.append("data_source_id integer NOT NULL,");
-        createArtifactInstancesTableTemplate.append("value text NOT NULL,");
-        createArtifactInstancesTableTemplate.append("file_path text NOT NULL,");
-        createArtifactInstancesTableTemplate.append("known_status integer NOT NULL,");
-        createArtifactInstancesTableTemplate.append("comment text,");
-        createArtifactInstancesTableTemplate.append("CONSTRAINT %s_multi_unique UNIQUE(data_source_id, value, file_path) ON CONFLICT IGNORE,");
-        createArtifactInstancesTableTemplate.append("foreign key (case_id) references cases(id) ON UPDATE SET NULL ON DELETE SET NULL,");
-        createArtifactInstancesTableTemplate.append("foreign key (data_source_id) references data_sources(id) ON UPDATE SET NULL ON DELETE SET NULL");
-        createArtifactInstancesTableTemplate.append(")");
+        String createArtifactInstancesTableTemplate = getCreateArtifactInstancesTableTemplate();
 
-        // Each "%s" will be replaced with the relevant TYPE_instances table name.
-        String instancesIdx1 = "CREATE INDEX IF NOT EXISTS %s_case_id ON %s (case_id)";
-        String instancesIdx2 = "CREATE INDEX IF NOT EXISTS %s_data_source_id ON %s (data_source_id)";
-        String instancesIdx3 = "CREATE INDEX IF NOT EXISTS %s_value ON %s (value)";
-        String instancesIdx4 = "CREATE INDEX IF NOT EXISTS %s_value_known_status ON %s (value, known_status)";
-
-        StringBuilder createDbInfoTable = new StringBuilder();
-        createDbInfoTable.append("CREATE TABLE IF NOT EXISTS db_info (");
-        createDbInfoTable.append("id integer primary key NOT NULL,");
-        createDbInfoTable.append("name text NOT NULL,");
-        createDbInfoTable.append("value text NOT NULL");
-        createDbInfoTable.append(")");
+        String instancesCaseIdIdx = getAddCaseIdIndexTemplate();
+        String instancesDatasourceIdIdx = getAddDataSourceIdIndexTemplate();
+        String instancesValueIdx = getAddValueIndexTemplate();
+        String instancesKnownStatusIdx = getAddKnownStatusIndexTemplate();
+        String instancesObjectIdIdx = getAddObjectIdIndexTemplate();
 
         // NOTE: the db_info table currenly only has 1 row, so having an index
         // provides no benefit.
@@ -383,15 +354,25 @@ public final class SqliteEamDbSettings {
             stmt.execute(casesIdx1);
             stmt.execute(casesIdx2);
 
-            stmt.execute(createDataSourcesTable.toString());
-            stmt.execute(dataSourceIdx1);
+            stmt.execute(getCreateDataSourcesTableStatement());
+            stmt.execute(getAddDataSourcesNameIndexStatement());
+            stmt.execute(getAddDataSourcesObjectIdIndexStatement());
 
             stmt.execute(createReferenceSetsTable.toString());
             stmt.execute(referenceSetsIdx1);
 
             stmt.execute(createCorrelationTypesTable.toString());
 
-            stmt.execute(createDbInfoTable.toString());
+            /*
+             * Note that the essentially useless id column in the following
+             * table is required for backwards compatibility. Otherwise, the
+             * name column could be the primary key.
+             */
+            stmt.execute("CREATE TABLE db_info (id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, value TEXT NOT NULL)");
+            stmt.execute("INSERT INTO db_info (name, value) VALUES ('" + AbstractSqlEamDb.SCHEMA_MAJOR_VERSION_KEY + "', '" + SOFTWARE_CR_DB_SCHEMA_VERSION.getMajor() + "')");
+            stmt.execute("INSERT INTO db_info (name, value) VALUES ('" + AbstractSqlEamDb.SCHEMA_MINOR_VERSION_KEY + "', '" + SOFTWARE_CR_DB_SCHEMA_VERSION.getMinor() + "')");
+            stmt.execute("INSERT INTO db_info (name, value) VALUES ('" + AbstractSqlEamDb.CREATION_SCHEMA_MAJOR_VERSION_KEY + "', '" + SOFTWARE_CR_DB_SCHEMA_VERSION.getMajor() + "')");
+            stmt.execute("INSERT INTO db_info (name, value) VALUES ('" + AbstractSqlEamDb.CREATION_SCHEMA_MINOR_VERSION_KEY + "', '" + SOFTWARE_CR_DB_SCHEMA_VERSION.getMinor() + "')");
 
             // Create a separate instance and reference table for each artifact type
             List<CorrelationAttributeInstance.Type> DEFAULT_CORRELATION_TYPES = CorrelationAttributeInstance.getDefaultCorrelationTypes();
@@ -402,11 +383,12 @@ public final class SqliteEamDbSettings {
                 reference_type_dbname = EamDbUtil.correlationTypeToReferenceTableName(type);
                 instance_type_dbname = EamDbUtil.correlationTypeToInstanceTableName(type);
 
-                stmt.execute(String.format(createArtifactInstancesTableTemplate.toString(), instance_type_dbname, instance_type_dbname));
-                stmt.execute(String.format(instancesIdx1, instance_type_dbname, instance_type_dbname));
-                stmt.execute(String.format(instancesIdx2, instance_type_dbname, instance_type_dbname));
-                stmt.execute(String.format(instancesIdx3, instance_type_dbname, instance_type_dbname));
-                stmt.execute(String.format(instancesIdx4, instance_type_dbname, instance_type_dbname));
+                stmt.execute(String.format(createArtifactInstancesTableTemplate, instance_type_dbname, instance_type_dbname));
+                stmt.execute(String.format(instancesCaseIdIdx, instance_type_dbname, instance_type_dbname));
+                stmt.execute(String.format(instancesDatasourceIdIdx, instance_type_dbname, instance_type_dbname));
+                stmt.execute(String.format(instancesValueIdx, instance_type_dbname, instance_type_dbname));
+                stmt.execute(String.format(instancesKnownStatusIdx, instance_type_dbname, instance_type_dbname));
+                stmt.execute(String.format(instancesObjectIdIdx, instance_type_dbname, instance_type_dbname));
 
                 // FUTURE: allow more than the FILES type
                 if (type.getId() == CorrelationAttributeInstance.FILES_TYPE_ID) {
@@ -427,15 +409,132 @@ public final class SqliteEamDbSettings {
         return true;
     }
 
+    /**
+     * Get the template String for creating a new _instances table in a Sqlite
+     * central repository. %s will exist in the template where the name of the
+     * new table will be addedd.
+     *
+     * @return a String which is a template for cretating a new _instances table
+     */
+    static String getCreateArtifactInstancesTableTemplate() {
+        // Each "%s" will be replaced with the relevant TYPE_instances table name.
+        return "CREATE TABLE IF NOT EXISTS %s (id integer primary key autoincrement NOT NULL,"
+                + "case_id integer NOT NULL,data_source_id integer NOT NULL,value text NOT NULL,"
+                + "file_path text NOT NULL,known_status integer NOT NULL,comment text,file_obj_id integer,"
+                + "CONSTRAINT %s_multi_unique UNIQUE(data_source_id, value, file_path) ON CONFLICT IGNORE,"
+                + "foreign key (case_id) references cases(id) ON UPDATE SET NULL ON DELETE SET NULL,"
+                + "foreign key (data_source_id) references data_sources(id) ON UPDATE SET NULL ON DELETE SET NULL)";
+    }
+
+    /**
+     * Get the statement String for creating a new data_sources table in a
+     * Sqlite central repository.
+     *
+     * @return a String which is a statement for cretating a new data_sources
+     *         table
+     */
+    static String getCreateDataSourcesTableStatement() {
+        return "CREATE TABLE IF NOT EXISTS data_sources (id integer primary key autoincrement NOT NULL,"
+                + "case_id integer NOT NULL,device_id text NOT NULL,name text NOT NULL,datasource_obj_id integer,"
+                + "md5 text DEFAULT NULL,sha1 text DEFAULT NULL,sha256 text DEFAULT NULL,"
+                + "foreign key (case_id) references cases(id) ON UPDATE SET NULL ON DELETE SET NULL,"
+                + "CONSTRAINT datasource_unique UNIQUE (case_id, datasource_obj_id))";
+    }
+
+    /**
+     * Get the statement for creating an index on the name column of the
+     * data_sources table.
+     *
+     * @return a String which is a statement for adding an index on the name
+     *         column of the data_sources table.
+     */
+    static String getAddDataSourcesNameIndexStatement() {
+        return "CREATE INDEX IF NOT EXISTS data_sources_name ON data_sources (name)";
+    }
+
+    /**
+     * Get the statement for creating an index on the data_sources_object_id
+     * column of the data_sources table.
+     *
+     * @return a String which is a statement for adding an index on the
+     *         data_sources_object_id column of the data_sources table.
+     */
+    static String getAddDataSourcesObjectIdIndexStatement() {
+        return "CREATE INDEX IF NOT EXISTS data_sources_object_id ON data_sources (datasource_obj_id)";
+    }
+
+    /**
+     * Get the template for creating an index on the case_id column of an
+     * instance table. %s will exist in the template where the name of the new
+     * table will be addedd.
+     *
+     * @return a String which is a template for adding an index to the case_id
+     *         column of a _instances table
+     */
+    static String getAddCaseIdIndexTemplate() {
+        // Each "%s" will be replaced with the relevant TYPE_instances table name.
+        return "CREATE INDEX IF NOT EXISTS %s_case_id ON %s (case_id)";
+    }
+
+    /**
+     * Get the template for creating an index on the data_source_id column of an
+     * instance table. %s will exist in the template where the name of the new
+     * table will be addedd.
+     *
+     * @return a String which is a template for adding an index to the
+     *         data_source_id column of a _instances table
+     */
+    static String getAddDataSourceIdIndexTemplate() {
+        // Each "%s" will be replaced with the relevant TYPE_instances table name.
+        return "CREATE INDEX IF NOT EXISTS %s_data_source_id ON %s (data_source_id)";
+    }
+
+    /**
+     * Get the template for creating an index on the value column of an instance
+     * table. %s will exist in the template where the name of the new table will
+     * be addedd.
+     *
+     * @return a String which is a template for adding an index to the value
+     *         column of a _instances table
+     */
+    static String getAddValueIndexTemplate() {
+        // Each "%s" will be replaced with the relevant TYPE_instances table name.
+        return "CREATE INDEX IF NOT EXISTS %s_value ON %s (value)";
+    }
+
+    /**
+     * Get the template for creating an index on the known_status column of an
+     * instance table. %s will exist in the template where the name of the new
+     * table will be addedd.
+     *
+     * @return a String which is a template for adding an index to the
+     *         known_status column of a _instances table
+     */
+    static String getAddKnownStatusIndexTemplate() {
+        // Each "%s" will be replaced with the relevant TYPE_instances table name.
+        return "CREATE INDEX IF NOT EXISTS %s_value_known_status ON %s (value, known_status)";
+    }
+
+    /**
+     * Get the template for creating an index on the file_obj_id column of an
+     * instance table. %s will exist in the template where the name of the new
+     * table will be addedd.
+     *
+     * @return a String which is a template for adding an index to the
+     *         file_obj_id column of a _instances table
+     */
+    static String getAddObjectIdIndexTemplate() {
+        // Each "%s" will be replaced with the relevant TYPE_instances table name.
+        return "CREATE INDEX IF NOT EXISTS %s_file_obj_id ON %s (file_obj_id)";
+    }
+
     public boolean insertDefaultDatabaseContent() {
         Connection conn = getEphemeralConnection();
         if (null == conn) {
             return false;
         }
 
-        boolean result = EamDbUtil.insertDefaultCorrelationTypes(conn)
-                && EamDbUtil.updateSchemaVersion(conn)
-                && EamDbUtil.insertDefaultOrganization(conn);
+        boolean result = EamDbUtil.insertDefaultCorrelationTypes(conn) && EamDbUtil.insertDefaultOrganization(conn);
         EamDbUtil.closeConnection(conn);
         return result;
     }
@@ -489,8 +588,6 @@ public final class SqliteEamDbSettings {
             throw new EamDbException("Invalid bulk threshold."); // NON-NLS
         }
     }
-
-
 
     /**
      * @return the dbDirectory

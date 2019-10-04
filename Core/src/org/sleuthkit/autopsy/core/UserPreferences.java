@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2014-2018 Basis Technology Corp.
+ * Copyright 2014-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,14 +18,15 @@
  */
 package org.sleuthkit.autopsy.core;
 
+import java.nio.file.Paths;
 import org.sleuthkit.autopsy.coreutils.TextConverter;
 import java.util.prefs.BackingStoreException;
 import org.sleuthkit.autopsy.events.MessageServiceConnectionInfo;
 import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import org.openide.util.NbPreferences;
+import org.python.icu.util.TimeZone;
 import org.sleuthkit.autopsy.coreutils.ModuleSettings;
-import org.sleuthkit.autopsy.coreutils.PlatformUtil;
 import org.sleuthkit.autopsy.coreutils.TextConverterException;
 import org.sleuthkit.autopsy.coreutils.Version;
 import org.sleuthkit.datamodel.CaseDbConnectionInfo;
@@ -37,7 +38,6 @@ import org.sleuthkit.datamodel.TskData.DbType;
  */
 public final class UserPreferences {
 
-    private static final boolean IS_WINDOWS_OS = PlatformUtil.isWindowsOS();
     private static final Preferences preferences = NbPreferences.forModule(UserPreferences.class);
     public static final String KEEP_PREFERRED_VIEWER = "KeepPreferredViewer"; // NON-NLS    
     public static final String HIDE_KNOWN_FILES_IN_DATA_SRCS_TREE = "HideKnownFilesInDataSourcesTree"; //NON-NLS 
@@ -45,6 +45,7 @@ public final class UserPreferences {
     public static final String HIDE_SLACK_FILES_IN_DATA_SRCS_TREE = "HideSlackFilesInDataSourcesTree"; //NON-NLS 
     public static final String HIDE_SLACK_FILES_IN_VIEWS_TREE = "HideSlackFilesInViewsTree"; //NON-NLS 
     public static final String DISPLAY_TIMES_IN_LOCAL_TIME = "DisplayTimesInLocalTime"; //NON-NLS
+    public static final String TIME_ZONE_FOR_DISPLAYS = "TimeZoneForDisplays"; //NON-NLS
     public static final String NUMBER_OF_FILE_INGEST_THREADS = "NumberOfFileIngestThreads"; //NON-NLS
     public static final String IS_MULTI_USER_MODE_ENABLED = "IsMultiUserModeEnabled"; //NON-NLS
     public static final String EXTERNAL_DATABASE_HOSTNAME_OR_IP = "ExternalDatabaseHostnameOrIp"; //NON-NLS
@@ -59,6 +60,7 @@ public final class UserPreferences {
     private static final String MESSAGE_SERVICE_USER = "MessageServiceUser"; //NON-NLS
     private static final String MESSAGE_SERVICE_HOST = "MessageServiceHost"; //NON-NLS
     private static final String MESSAGE_SERVICE_PORT = "MessageServicePort"; //NON-NLS
+    private static final String TEXT_TRANSLATOR_NAME = "TextTranslatorName";
     public static final String PROCESS_TIME_OUT_ENABLED = "ProcessTimeOutEnabled"; //NON-NLS
     public static final String PROCESS_TIME_OUT_HOURS = "ProcessTimeOutHours"; //NON-NLS
     private static final int DEFAULT_PROCESS_TIMEOUT_HR = 60;
@@ -71,7 +73,11 @@ public final class UserPreferences {
     private static final int LOG_FILE_NUM_INT = 10;
     public static final String GROUP_ITEMS_IN_TREE_BY_DATASOURCE = "GroupItemsInTreeByDataSource"; //NON-NLS
     public static final String SHOW_ONLY_CURRENT_USER_TAGS = "ShowOnlyCurrentUserTags";
-    public static final String HIDE_CENTRAL_REPO_COMMENTS_AND_OCCURRENCES = "HideCentralRepoCommentsAndOccurrences";
+    public static final String HIDE_SCO_COLUMNS = "HideCentralRepoCommentsAndOccurrences"; //The key for this setting pre-dates the settings current functionality //NON-NLS
+    public static final String DISPLAY_TRANSLATED_NAMES = "DisplayTranslatedNames";
+    public static final String EXTERNAL_HEX_EDITOR_PATH = "ExternalHexEditorPath";
+    public static final String SOLR_MAX_JVM_SIZE = "SolrMaxJVMSize";
+    public static final String RESULTS_TABLE_PAGE_SIZE = "ResultsTablePageSize";
 
     // Prevent instantiation.
     private UserPreferences() {
@@ -182,6 +188,14 @@ public final class UserPreferences {
         preferences.putBoolean(DISPLAY_TIMES_IN_LOCAL_TIME, value);
     }
 
+    public static String getTimeZoneForDisplays() {
+        return preferences.get(TIME_ZONE_FOR_DISPLAYS, TimeZone.GMT_ZONE.getID());
+    }
+
+    public static void setTimeZoneForDisplays(String timeZone) {
+        preferences.put(TIME_ZONE_FOR_DISPLAYS, timeZone);
+    }
+
     public static int numberOfFileIngestThreads() {
         return preferences.getInt(NUMBER_OF_FILE_INGEST_THREADS, 2);
     }
@@ -210,11 +224,10 @@ public final class UserPreferences {
         return preferences.getBoolean(SHOW_ONLY_CURRENT_USER_TAGS, false);
     }
 
-
     /**
      * Set the user preference which identifies whether tags should be shown for
      * only the current user or all users.
-     * 
+     *
      * @param value - true for just the current user, false for all users
      */
     public static void setShowOnlyCurrentUserTags(boolean value) {
@@ -222,27 +235,33 @@ public final class UserPreferences {
     }
 
     /**
-     * Get the user preference which identifies whether the Central Repository
-     * should be called to get comments and occurrences for the (C)omments and
-     * (O)ccurrences columns in the result view.
-     * 
-     * @return True if hiding Central Repository data for comments and
-     *         occurrences; otherwise false.
+     * Get the user preference which identifies whether the (S)core, (C)omments,
+     * and (O)ccurrences columns should be populated and displayed in the result
+     * view.
+     *
+     * @return True if hiding SCO columns; otherwise false.
      */
-    public static boolean hideCentralRepoCommentsAndOccurrences() {
-        return preferences.getBoolean(HIDE_CENTRAL_REPO_COMMENTS_AND_OCCURRENCES, false);
+    public static boolean getHideSCOColumns() {
+        return preferences.getBoolean(HIDE_SCO_COLUMNS, false);
     }
 
-
     /**
-     * Set the user preference which identifies whether the Central Repository
-     * should be called to get comments and occurrences for the (C)omments and
-     * (O)ccurrences columns in the result view.
-     * 
+     * Set the user preference which identifies whether the (S)core, (C)omments,
+     * and (O)ccurrences columns should be populated and displayed in the result
+     * view.
+     *
      * @param value The value of which to assign to the user preference.
      */
-    public static void setHideCentralRepoCommentsAndOccurrences(boolean value) {
-        preferences.putBoolean(HIDE_CENTRAL_REPO_COMMENTS_AND_OCCURRENCES, value);
+    public static void setHideSCOColumns(boolean value) {
+        preferences.putBoolean(HIDE_SCO_COLUMNS, value);
+    }
+
+    public static void setDisplayTranslatedFileNames(boolean value) {
+        preferences.putBoolean(DISPLAY_TRANSLATED_NAMES, value);
+    }
+
+    public static boolean displayTranslatedFileNames() {
+        return preferences.getBoolean(DISPLAY_TRANSLATED_NAMES, false);
     }
 
     /**
@@ -313,6 +332,14 @@ public final class UserPreferences {
 
     public static void setIndexingServerPort(int port) {
         preferences.putInt(INDEXING_SERVER_PORT, port);
+    }
+
+    public static void setTextTranslatorName(String textTranslatorName) {
+        preferences.put(TEXT_TRANSLATOR_NAME, textTranslatorName);
+    }
+
+    public static String getTextTranslatorName() {
+        return preferences.get(TEXT_TRANSLATOR_NAME, null);
     }
 
     /**
@@ -451,5 +478,60 @@ public final class UserPreferences {
      */
     public static void setLogFileCount(int count) {
         preferences.putInt(MAX_NUM_OF_LOG_FILE, count);
+    }
+
+    /**
+     * Get the maximum JVM heap size (in MB) for the embedded Solr server.
+     *
+     * @return Saved value or default (512)
+     */
+    public static int getMaxSolrVMSize() {
+        return preferences.getInt(SOLR_MAX_JVM_SIZE, 512);
+    }
+
+    /**
+     * Set the maximum JVM heap size (in MB) for the embedded Solr server.
+     *
+     * @param maxSize
+     */
+    public static void setMaxSolrVMSize(int maxSize) {
+        preferences.putInt(SOLR_MAX_JVM_SIZE, maxSize);
+    }
+
+    /**
+     * Get the maximum number of results to display in a result table.
+     *
+     * @return Saved value or default (10,000).
+     */
+    public static int getResultsTablePageSize() {
+        return preferences.getInt(RESULTS_TABLE_PAGE_SIZE, 10_000);
+    }
+
+    /**
+     * Set the maximum number of results to display in a result table.
+     *
+     * @param pageSize
+     */
+    public static void setResultsTablePageSize(int pageSize) {
+        preferences.putInt(RESULTS_TABLE_PAGE_SIZE, pageSize);
+    }
+
+    /**
+     * Set the HdX path.
+     *
+     * @param executablePath User-inputted path to HxD executable
+     */
+    public static void setExternalHexEditorPath(String executablePath) {
+        preferences.put(EXTERNAL_HEX_EDITOR_PATH, executablePath);
+    }
+
+    /**
+     * Retrieves the HdXEditor path set by the User. If not found, the default
+     * will be the default install location of HxD.
+     *
+     * @return Path to HdX
+     */
+    public static String getExternalHexEditorPath() {
+        return preferences.get(EXTERNAL_HEX_EDITOR_PATH, Paths.get("C:", "Program Files", "HxD", "HxD.exe").toString());
     }
 }

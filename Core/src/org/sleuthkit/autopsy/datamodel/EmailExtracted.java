@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2012-2018 Basis Technology Corp.
+ * Copyright 2012-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Set;
@@ -40,9 +39,7 @@ import org.openide.nodes.Sheet;
 import org.openide.util.NbBundle;
 import org.openide.util.lookup.Lookups;
 import org.sleuthkit.autopsy.casemodule.Case;
-import org.sleuthkit.autopsy.casemodule.CasePreferences;
 import org.sleuthkit.autopsy.casemodule.NoCurrentCaseException;
-import org.sleuthkit.autopsy.core.UserPreferences;
 import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.ingest.IngestManager;
 import org.sleuthkit.autopsy.ingest.ModuleDataEvent;
@@ -66,6 +63,9 @@ public class EmailExtracted implements AutopsyVisitableItem {
     private static final String MAIL_ACCOUNT = NbBundle.getMessage(EmailExtracted.class, "EmailExtracted.mailAccount.text");
     private static final String MAIL_FOLDER = NbBundle.getMessage(EmailExtracted.class, "EmailExtracted.mailFolder.text");
     private static final String MAIL_PATH_SEPARATOR = "/";
+    private static final Set<IngestManager.IngestJobEvent> INGEST_JOB_EVENTS_OF_INTEREST = EnumSet.of(IngestManager.IngestJobEvent.COMPLETED, IngestManager.IngestJobEvent.CANCELLED);
+    private static final Set<IngestManager.IngestModuleEvent> INGEST_MODULE_EVENTS_OF_INTEREST = EnumSet.of(IngestManager.IngestModuleEvent.DATA_ADDED);
+
     /**
      * Parse the path of the email msg to get the account name and folder in
      * which the email is contained.
@@ -89,39 +89,37 @@ public class EmailExtracted implements AutopsyVisitableItem {
     }
     private SleuthkitCase skCase;
     private final EmailResults emailResults;
-    private final long datasourceObjId;
-
-
+    private final long filteringDSObjId;    // 0 if not filtering/grouping by data source
 
     /**
      * Constructor
-     * 
+     *
      * @param skCase Case DB
      */
     public EmailExtracted(SleuthkitCase skCase) {
         this(skCase, 0);
     }
-    
+
     /**
      * Constructor
-     * 
-     * @param skCase  Case DB
-     * @param objId  Object id of the data source 
-     * 
-     */ 
+     *
+     * @param skCase Case DB
+     * @param objId  Object id of the data source
+     *
+     */
     public EmailExtracted(SleuthkitCase skCase, long objId) {
         this.skCase = skCase;
-        this.datasourceObjId = objId;
+        this.filteringDSObjId = objId;
         emailResults = new EmailResults();
     }
-
 
     @Override
     public <T> T accept(AutopsyItemVisitor<T> visitor) {
         return visitor.visit(this);
     }
+
     private final class EmailResults extends Observable {
-        
+
         // NOTE: the map can be accessed by multiple worker threads and needs to be synchronized
         private final Map<String, Map<String, List<Long>>> accounts = new LinkedHashMap<>();
 
@@ -163,8 +161,8 @@ public class EmailExtracted implements AutopsyVisitableItem {
                     + "attribute_type_id=" + pathAttrId //NON-NLS
                     + " AND blackboard_attributes.artifact_id=blackboard_artifacts.artifact_id" //NON-NLS
                     + " AND blackboard_artifacts.artifact_type_id=" + artId; //NON-NLS
-            if (Objects.equals(CasePreferences.getGroupItemsInTreeByDataSource(), true)) {
-                query +=  "  AND blackboard_artifacts.data_source_obj_id = " + datasourceObjId;
+            if (filteringDSObjId > 0) {
+                query += "  AND blackboard_artifacts.data_source_obj_id = " + filteringDSObjId;
             }
 
             try (CaseDbQuery dbQuery = skCase.executeQuery(query)) {
@@ -310,8 +308,8 @@ public class EmailExtracted implements AutopsyVisitableItem {
 
         @Override
         protected void addNotify() {
-            IngestManager.getInstance().addIngestJobEventListener(pcl);
-            IngestManager.getInstance().addIngestModuleEventListener(pcl);
+            IngestManager.getInstance().addIngestJobEventListener(INGEST_JOB_EVENTS_OF_INTEREST, pcl);
+            IngestManager.getInstance().addIngestModuleEventListener(INGEST_MODULE_EVENTS_OF_INTEREST, pcl);
             Case.addEventTypeSubscriber(EnumSet.of(Case.Events.CURRENT_CASE), pcl);
             emailResults.update();
             emailResults.addObserver(this);
@@ -494,41 +492,52 @@ public class EmailExtracted implements AutopsyVisitableItem {
     /**
      * Node representing mail folder content (mail messages)
      */
-    private class MessageFactory extends ChildFactory<Long> implements Observer {
+    private class MessageFactory extends BaseChildFactory<BlackboardArtifact> implements Observer {
 
         private final String accountName;
         private final String folderName;
 
         private MessageFactory(String accountName, String folderName) {
-            super();
+            super(accountName + "_" + folderName);
             this.accountName = accountName;
             this.folderName = folderName;
             emailResults.addObserver(this);
         }
 
         @Override
-        protected boolean createKeys(List<Long> list) {
-            list.addAll(emailResults.getArtifactIds(accountName, folderName));
-            return true;
-        }
-
-        @Override
-        protected Node createNodeForKey(Long artifactId) {
-            if (skCase == null) {
-                return null;
-            }
-            try {
-                BlackboardArtifact artifact = skCase.getBlackboardArtifact(artifactId);
-                return new BlackboardArtifactNode(artifact);
-            } catch (TskCoreException ex) {
-                logger.log(Level.WARNING, "Error creating mail messages nodes", ex); //NON-NLS
-            }
-            return null;
+        protected Node createNodeForKey(BlackboardArtifact art) {
+            return new BlackboardArtifactNode(art);
         }
 
         @Override
         public void update(Observable o, Object arg) {
             refresh(true);
+        }
+
+        @Override
+        protected List<BlackboardArtifact> makeKeys() {
+            List<BlackboardArtifact> keys = new ArrayList<>();
+
+            if (skCase != null) {
+                emailResults.getArtifactIds(accountName, folderName).forEach((id) -> {
+                    try {
+                        keys.add(skCase.getBlackboardArtifact(id));
+                    } catch (TskCoreException ex) {
+                        logger.log(Level.WARNING, "Error getting mail messages keys", ex); //NON-NLS
+                    }
+                });
+            }
+            return keys;
+        }
+
+        @Override
+        protected void onAdd() {
+            // No-op
+        }
+
+        @Override
+        protected void onRemove() {
+            // No-op
         }
     }
 }

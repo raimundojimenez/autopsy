@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2017-2018 Basis Technology Corp.
+ * Copyright 2017-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,10 @@
  */
 package org.sleuthkit.autopsy.contentviewers;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -36,15 +38,12 @@ import org.openide.nodes.Node;
 import org.openide.nodes.Sheet;
 import org.openide.util.NbBundle;
 import org.openide.util.lookup.ServiceProvider;
-import org.sleuthkit.autopsy.centralrepository.datamodel.CorrelationAttributeInstance;
-import org.sleuthkit.autopsy.centralrepository.datamodel.EamDbUtil;
-import org.sleuthkit.autopsy.core.UserPreferences;
 import org.sleuthkit.autopsy.corecomponentinterfaces.DataContentViewer;
 import org.sleuthkit.autopsy.corecomponents.DataResultPanel;
 import org.sleuthkit.autopsy.corecomponents.TableFilterNode;
 import org.sleuthkit.autopsy.coreutils.Logger;
+import org.sleuthkit.autopsy.datamodel.AbstractAbstractFileNode;
 import org.sleuthkit.autopsy.datamodel.FileNode;
-import org.sleuthkit.autopsy.datamodel.NodeProperty;
 import org.sleuthkit.autopsy.directorytree.DataResultFilterNode;
 import org.sleuthkit.autopsy.directorytree.NewWindowViewAction;
 import org.sleuthkit.datamodel.AbstractFile;
@@ -68,7 +67,6 @@ import static org.sleuthkit.datamodel.BlackboardAttribute.ATTRIBUTE_TYPE.TSK_PHO
 import static org.sleuthkit.datamodel.BlackboardAttribute.ATTRIBUTE_TYPE.TSK_PHONE_NUMBER_TO;
 import static org.sleuthkit.datamodel.BlackboardAttribute.ATTRIBUTE_TYPE.TSK_SUBJECT;
 import static org.sleuthkit.datamodel.BlackboardAttribute.ATTRIBUTE_TYPE.TSK_TEXT;
-import org.sleuthkit.datamodel.ContentTag;
 import org.sleuthkit.datamodel.TskCoreException;
 
 /**
@@ -89,7 +87,7 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
     private static final int ATTM_TAB_INDEX = 4;
 
     private final List<JTextComponent> textAreas;
-
+    private final org.sleuthkit.autopsy.contentviewers.HtmlPanel htmlPanel = new org.sleuthkit.autopsy.contentviewers.HtmlPanel();
     /**
      * Artifact currently being displayed
      */
@@ -103,13 +101,18 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
     @NbBundle.Messages("MessageContentViewer.AtrachmentsPanel.title=Attachments")
     public MessageContentViewer() {
         initComponents();
+        htmlPane.add(htmlPanel);
+        envelopePanel.setBackground(new Color(0, 0, 0, 38));
         drp = DataResultPanel.createInstanceUninitialized(Bundle.MessageContentViewer_AtrachmentsPanel_title(), "", new TableFilterNode(Node.EMPTY, false), 0, null);
         attachmentsScrollPane.setViewportView(drp);
         msgbodyTabbedPane.setEnabledAt(ATTM_TAB_INDEX, true);
 
-        textAreas = Arrays.asList(headersTextArea, textbodyTextArea, htmlbodyTextPane, rtfbodyTextPane);
+        /*
+         * HTML tab uses the HtmlPanel instead of an internal text pane, so we
+         * use 'null' for that index.
+         */
+        textAreas = Arrays.asList(headersTextArea, textbodyTextArea, null, rtfbodyTextPane);
 
-        Utilities.configureTextPaneAsHtml(htmlbodyTextPane);
         Utilities.configureTextPaneAsRtf(rtfbodyTextPane);
         resetComponent();
 
@@ -151,9 +154,6 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
         textbodyScrollPane = new javax.swing.JScrollPane();
         textbodyTextArea = new javax.swing.JTextArea();
         htmlPane = new javax.swing.JPanel();
-        htmlScrollPane = new javax.swing.JScrollPane();
-        htmlbodyTextPane = new javax.swing.JTextPane();
-        showImagesToggleButton = new javax.swing.JToggleButton();
         rtfbodyScrollPane = new javax.swing.JScrollPane();
         rtfbodyTextPane = new javax.swing.JTextPane();
         attachmentsPanel = new javax.swing.JPanel();
@@ -266,37 +266,7 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
 
         msgbodyTabbedPane.addTab(org.openide.util.NbBundle.getMessage(MessageContentViewer.class, "MessageContentViewer.textbodyScrollPane.TabConstraints.tabTitle"), textbodyScrollPane); // NOI18N
 
-        htmlScrollPane.setVerticalScrollBarPolicy(javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
-
-        htmlbodyTextPane.setEditable(false);
-        htmlScrollPane.setViewportView(htmlbodyTextPane);
-
-        org.openide.awt.Mnemonics.setLocalizedText(showImagesToggleButton, "Show Images");
-        showImagesToggleButton.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                showImagesToggleButtonActionPerformed(evt);
-            }
-        });
-
-        javax.swing.GroupLayout htmlPaneLayout = new javax.swing.GroupLayout(htmlPane);
-        htmlPane.setLayout(htmlPaneLayout);
-        htmlPaneLayout.setHorizontalGroup(
-            htmlPaneLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(htmlScrollPane)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, htmlPaneLayout.createSequentialGroup()
-                .addContainerGap(533, Short.MAX_VALUE)
-                .addComponent(showImagesToggleButton)
-                .addGap(3, 3, 3))
-        );
-        htmlPaneLayout.setVerticalGroup(
-            htmlPaneLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(htmlPaneLayout.createSequentialGroup()
-                .addComponent(showImagesToggleButton)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(htmlScrollPane, javax.swing.GroupLayout.DEFAULT_SIZE, 333, Short.MAX_VALUE)
-                .addGap(0, 0, 0))
-        );
-
+        htmlPane.setLayout(new java.awt.BorderLayout());
         msgbodyTabbedPane.addTab(org.openide.util.NbBundle.getMessage(MessageContentViewer.class, "MessageContentViewer.htmlPane.TabConstraints.tabTitle"), htmlPane); // NOI18N
 
         rtfbodyScrollPane.setVerticalScrollBarPolicy(javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
@@ -359,26 +329,6 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
         );
     }// </editor-fold>//GEN-END:initComponents
 
-    @NbBundle.Messages({
-        "MessageContentViewer.showImagesToggleButton.hide.text=Hide Images",
-        "MessageContentViewer.showImagesToggleButton.text=Show Images"})
-    private void showImagesToggleButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_showImagesToggleButtonActionPerformed
-        try {
-            String htmlText = getAttributeValueSafe(artifact, TSK_EMAIL_CONTENT_HTML);
-            if (false == htmlText.isEmpty()) {
-                if (showImagesToggleButton.isSelected()) {
-                    showImagesToggleButton.setText(Bundle.MessageContentViewer_showImagesToggleButton_hide_text());
-                    this.htmlbodyTextPane.setText(wrapInHtmlBody(htmlText));
-                } else {
-                    showImagesToggleButton.setText(Bundle.MessageContentViewer_showImagesToggleButton_text());
-                    this.htmlbodyTextPane.setText(wrapInHtmlBody(cleanseHTML(htmlText)));
-                }
-            }
-        } catch (TskCoreException ex) {
-            LOGGER.log(Level.WARNING, "Failed to get attributes for email message.", ex); //NON-NLS
-        }
-    }//GEN-LAST:event_showImagesToggleButtonActionPerformed
-
     private void viewInNewWindowButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_viewInNewWindowButtonActionPerformed
         new NewWindowViewAction("View in new window", drpExplorerManager.getSelectedNodes()[0]).actionPerformed(evt);
     }//GEN-LAST:event_viewInNewWindowButtonActionPerformed
@@ -397,12 +347,9 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
     private javax.swing.JScrollPane headersScrollPane;
     private javax.swing.JTextArea headersTextArea;
     private javax.swing.JPanel htmlPane;
-    private javax.swing.JScrollPane htmlScrollPane;
-    private javax.swing.JTextPane htmlbodyTextPane;
     private javax.swing.JTabbedPane msgbodyTabbedPane;
     private javax.swing.JScrollPane rtfbodyScrollPane;
     private javax.swing.JTextPane rtfbodyTextPane;
-    private javax.swing.JToggleButton showImagesToggleButton;
     private javax.swing.JLabel subjectLabel;
     private javax.swing.JLabel subjectText;
     private javax.swing.JScrollPane textbodyScrollPane;
@@ -506,10 +453,10 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
 
         headersTextArea.setText("");
         rtfbodyTextPane.setText("");
-        htmlbodyTextPane.setText("");
+        htmlPanel.reset();
         textbodyTextArea.setText("");
-        showImagesToggleButton.setEnabled(false);
         msgbodyTabbedPane.setEnabled(false);
+        drp.setNode(null);
     }
 
     @Override
@@ -568,12 +515,15 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
         String attributeText = getAttributeValueSafe(artifact, type);
 
         if (index == HTML_TAB_INDEX && StringUtils.isNotBlank(attributeText)) {
-            //special case for HTML, we need to 'cleanse' it
-            attributeText = wrapInHtmlBody(cleanseHTML(attributeText));
+            htmlPanel.setHtmlText(attributeText);
+        } else {
+            JTextComponent textComponent = textAreas.get(index);
+            if (textComponent != null) {
+                textComponent.setText(attributeText);
+                textComponent.setCaretPosition(0); //make sure we start at the top
+            }
         }
-        JTextComponent textComponent = textAreas.get(index);
-        textComponent.setText(attributeText);
-        textComponent.setCaretPosition(0); //make sure we start at the top
+
         final boolean hasText = attributeText.length() > 0;
 
         msgbodyTabbedPane.setEnabledAt(index, hasText);
@@ -601,7 +551,7 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
         msgbodyTabbedPane.setEnabledAt(ATTM_TAB_INDEX, numberOfAttachments > 0);
         msgbodyTabbedPane.setTitleAt(ATTM_TAB_INDEX, "Attachments (" + numberOfAttachments + ")");
         drp.setNode(new TableFilterNode(new DataResultFilterNode(new AbstractNode(
-                new AttachmentsChildren(attachments)), null), true));
+                new AttachmentsChildren(attachments))), true));
     }
 
     private static String wrapInHtmlBody(String htmlText) {
@@ -613,10 +563,6 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
 
         directionText.setEnabled(false);
         ccLabel.setEnabled(true);
-
-        showImagesToggleButton.setEnabled(true);
-        showImagesToggleButton.setText("Show Images");
-        showImagesToggleButton.setSelected(false);
 
         try {
             this.fromText.setText(getAttributeValueSafe(artifact, TSK_EMAIL_FROM));
@@ -721,31 +667,23 @@ public class MessageContentViewer extends javax.swing.JPanel implements DataCont
 
         @Override
         protected Sheet createSheet() {
-            Sheet sheet = new Sheet();
-            Sheet.Set sheetSet = sheet.get(Sheet.PROPERTIES);
-            if (sheetSet == null) {
-                sheetSet = Sheet.createPropertiesSet();
-                sheet.put(sheetSet);
-            }
-            List<ContentTag> tags = getContentTagsFromDatabase();
+            Sheet sheet = super.createSheet();
+            Set<String> keepProps = new HashSet<>(Arrays.asList(
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.nameColLbl"),
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.createSheet.score.name"),
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.createSheet.comment.name"),
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.createSheet.count.name"),
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.sizeColLbl"),
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.mimeType"),
+                    NbBundle.getMessage(AbstractAbstractFileNode.class, "AbstractAbstractFileNode.knownColLbl")));
 
-            AbstractFile file = getContent();
-            sheetSet.put(new NodeProperty<>("Name", "Name", "Name", file.getName()));
-            
-            addScoreProperty(sheetSet, tags);
-            
-            CorrelationAttributeInstance correlationAttribute = null;
-            if (EamDbUtil.useCentralRepo() && UserPreferences.hideCentralRepoCommentsAndOccurrences()== false) {
-                correlationAttribute = getCorrelationAttributeInstance();
+            //Remove all other props except for the  ones above
+            Sheet.Set sheetSet = sheet.get(Sheet.PROPERTIES);
+            for (Property<?> p : sheetSet.getProperties()) {
+                if (!keepProps.contains(p.getName())) {
+                    sheetSet.remove(p.getName());
+                }
             }
-            addCommentProperty(sheetSet, tags, correlationAttribute);
-            
-            if (EamDbUtil.useCentralRepo() && UserPreferences.hideCentralRepoCommentsAndOccurrences()== false) {
-                addCountProperty(sheetSet, correlationAttribute);
-            }
-            sheetSet.put(new NodeProperty<>("Size", "Size", "Size", file.getSize()));
-            sheetSet.put(new NodeProperty<>("Mime Type", "Mime Type", "Mime Type", StringUtils.defaultString(file.getMIMEType())));
-            sheetSet.put(new NodeProperty<>("Known", "Known", "Known", file.getKnown().getName()));
 
             return sheet;
         }

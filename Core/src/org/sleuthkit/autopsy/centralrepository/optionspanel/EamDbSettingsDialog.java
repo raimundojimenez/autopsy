@@ -90,7 +90,7 @@ public class EamDbSettingsDialog extends JDialog {
         initComponents();
         fcDatabasePath.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         fcDatabasePath.setAcceptAllFileFilterUsed(false);
-         fcDatabasePath.setDialogTitle(Bundle.EamDbSettingsDialog_fcDatabasePath_title());
+        fcDatabasePath.setDialogTitle(Bundle.EamDbSettingsDialog_fcDatabasePath_title());
         fcDatabasePath.setFileFilter(new FileFilter() {
             @Override
             public boolean accept(File pathname) {
@@ -102,7 +102,7 @@ public class EamDbSettingsDialog extends JDialog {
 
             @Override
             public String getDescription() {
-                return "Directories and central repository databases";
+                return "Directories and Central Repository databases";
             }
         });
         cbDatabaseType.setSelectedItem(selectedPlatform);
@@ -142,12 +142,17 @@ public class EamDbSettingsDialog extends JDialog {
         lbSingleUserSqLite = new javax.swing.JLabel();
         lbDatabaseType = new javax.swing.JLabel();
         lbDatabaseDesc = new javax.swing.JLabel();
-        lbFullDbPath = new javax.swing.JLabel();
         filler1 = new javax.swing.Box.Filler(new java.awt.Dimension(0, 0), new java.awt.Dimension(0, 0), new java.awt.Dimension(0, 32767));
+        dataBaseFileScrollPane = new javax.swing.JScrollPane();
+        dataBaseFileTextArea = new javax.swing.JTextArea();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setResizable(false);
 
         org.openide.awt.Mnemonics.setLocalizedText(bnCancel, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.bnCancel.text")); // NOI18N
+        bnCancel.setMaximumSize(new java.awt.Dimension(79, 23));
+        bnCancel.setMinimumSize(new java.awt.Dimension(79, 23));
+        bnCancel.setPreferredSize(new java.awt.Dimension(79, 23));
         bnCancel.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 bnCancelActionPerformed(evt);
@@ -169,25 +174,30 @@ public class EamDbSettingsDialog extends JDialog {
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addComponent(bnOk)
                 .addGap(11, 11, 11)
-                .addComponent(bnCancel)
+                .addComponent(bnCancel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap())
         );
+
+        pnButtonsLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {bnCancel, bnOk});
+
         pnButtonsLayout.setVerticalGroup(
             pnButtonsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(pnButtonsLayout.createSequentialGroup()
                 .addGap(0, 0, 0)
                 .addGroup(pnButtonsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(bnOk)
-                    .addComponent(bnCancel))
+                    .addComponent(bnCancel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addGap(0, 0, 0))
         );
 
         pnSQLiteSettings.setBorder(javax.swing.BorderFactory.createEtchedBorder());
 
         org.openide.awt.Mnemonics.setLocalizedText(lbDatabasePath, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbDatabasePath.text")); // NOI18N
+        lbDatabasePath.setPreferredSize(new java.awt.Dimension(80, 14));
 
         tfDatabasePath.setText(org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.tfDatabasePath.text")); // NOI18N
         tfDatabasePath.setToolTipText(org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.tfDatabasePath.toolTipText")); // NOI18N
+        tfDatabasePath.setPreferredSize(new java.awt.Dimension(420, 23));
 
         org.openide.awt.Mnemonics.setLocalizedText(bnDatabasePathFileOpen, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.bnDatabasePathFileOpen.text")); // NOI18N
         bnDatabasePathFileOpen.addActionListener(new java.awt.event.ActionListener() {
@@ -197,14 +207,27 @@ public class EamDbSettingsDialog extends JDialog {
         });
 
         org.openide.awt.Mnemonics.setLocalizedText(lbHostName, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbHostName.text")); // NOI18N
+        lbHostName.setPreferredSize(new java.awt.Dimension(80, 14));
+
+        tbDbHostname.setPreferredSize(new java.awt.Dimension(509, 20));
 
         org.openide.awt.Mnemonics.setLocalizedText(lbPort, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbPort.text")); // NOI18N
+        lbPort.setPreferredSize(new java.awt.Dimension(80, 14));
+
+        tbDbPort.setPreferredSize(new java.awt.Dimension(509, 20));
 
         org.openide.awt.Mnemonics.setLocalizedText(lbUserName, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbUserName.text")); // NOI18N
+        lbUserName.setPreferredSize(new java.awt.Dimension(80, 14));
+
+        tbDbUsername.setPreferredSize(new java.awt.Dimension(509, 20));
 
         org.openide.awt.Mnemonics.setLocalizedText(lbUserPassword, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbUserPassword.text")); // NOI18N
+        lbUserPassword.setPreferredSize(new java.awt.Dimension(80, 14));
+
+        jpDbPassword.setPreferredSize(new java.awt.Dimension(509, 20));
 
         cbDatabaseType.setModel(new javax.swing.DefaultComboBoxModel<>(new EamDbPlatformEnum[]{EamDbPlatformEnum.POSTGRESQL, EamDbPlatformEnum.SQLITE}));
+        cbDatabaseType.setPreferredSize(new java.awt.Dimension(120, 20));
         cbDatabaseType.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 cbDatabaseTypeActionPerformed(evt);
@@ -212,12 +235,25 @@ public class EamDbSettingsDialog extends JDialog {
         });
 
         org.openide.awt.Mnemonics.setLocalizedText(lbSingleUserSqLite, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbSingleUserSqLite.text")); // NOI18N
+        lbSingleUserSqLite.setPreferredSize(new java.awt.Dimension(381, 14));
 
         org.openide.awt.Mnemonics.setLocalizedText(lbDatabaseType, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbDatabaseType.text")); // NOI18N
+        lbDatabaseType.setMaximumSize(new java.awt.Dimension(80, 14));
+        lbDatabaseType.setMinimumSize(new java.awt.Dimension(80, 14));
+        lbDatabaseType.setPreferredSize(new java.awt.Dimension(80, 14));
 
         org.openide.awt.Mnemonics.setLocalizedText(lbDatabaseDesc, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbDatabaseDesc.text")); // NOI18N
+        lbDatabaseDesc.setPreferredSize(new java.awt.Dimension(80, 14));
 
-        org.openide.awt.Mnemonics.setLocalizedText(lbFullDbPath, org.openide.util.NbBundle.getMessage(EamDbSettingsDialog.class, "EamDbSettingsDialog.lbFullDbPath.text")); // NOI18N
+        dataBaseFileScrollPane.setBorder(null);
+
+        dataBaseFileTextArea.setEditable(false);
+        dataBaseFileTextArea.setBackground(new java.awt.Color(240, 240, 240));
+        dataBaseFileTextArea.setColumns(20);
+        dataBaseFileTextArea.setFont(new java.awt.Font("Tahoma", 0, 11)); // NOI18N
+        dataBaseFileTextArea.setLineWrap(true);
+        dataBaseFileTextArea.setRows(3);
+        dataBaseFileScrollPane.setViewportView(dataBaseFileTextArea);
 
         javax.swing.GroupLayout pnSQLiteSettingsLayout = new javax.swing.GroupLayout(pnSQLiteSettings);
         pnSQLiteSettings.setLayout(pnSQLiteSettingsLayout);
@@ -226,34 +262,30 @@ public class EamDbSettingsDialog extends JDialog {
             .addGroup(pnSQLiteSettingsLayout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(lbHostName)
-                    .addComponent(lbPort)
-                    .addComponent(lbUserName)
-                    .addComponent(lbDatabaseType)
+                    .addComponent(lbHostName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(lbDatabaseType, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(lbDatabasePath, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(lbUserName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(lbPort, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                        .addComponent(lbDatabasePath, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(lbUserPassword, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addComponent(lbDatabaseDesc))
+                        .addComponent(lbDatabaseDesc, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(lbUserPassword, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                 .addGap(10, 10, 10)
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(lbFullDbPath, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addGroup(pnSQLiteSettingsLayout.createSequentialGroup()
+                        .addComponent(tfDatabasePath, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addComponent(bnDatabasePathFileOpen))
                     .addGroup(pnSQLiteSettingsLayout.createSequentialGroup()
                         .addComponent(cbDatabaseType, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(lbSingleUserSqLite, javax.swing.GroupLayout.DEFAULT_SIZE, 467, Short.MAX_VALUE)
-                        .addGap(9, 9, 9))
-                    .addGroup(pnSQLiteSettingsLayout.createSequentialGroup()
-                        .addComponent(tfDatabasePath)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(bnDatabasePathFileOpen)
-                        .addGap(11, 11, 11))
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, pnSQLiteSettingsLayout.createSequentialGroup()
-                        .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addComponent(tbDbHostname, javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jpDbPassword, javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(tbDbUsername)
-                            .addComponent(tbDbPort, javax.swing.GroupLayout.Alignment.LEADING))
-                        .addGap(10, 10, 10))))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(lbSingleUserSqLite, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(jpDbPassword, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(tbDbUsername, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(tbDbPort, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(tbDbHostname, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(dataBaseFileScrollPane, javax.swing.GroupLayout.PREFERRED_SIZE, 509, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap())
             .addGroup(pnSQLiteSettingsLayout.createSequentialGroup()
                 .addGap(55, 55, 55)
                 .addComponent(filler1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -266,35 +298,36 @@ public class EamDbSettingsDialog extends JDialog {
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                         .addComponent(cbDatabaseType, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(lbSingleUserSqLite))
-                    .addComponent(lbDatabaseType, javax.swing.GroupLayout.Alignment.TRAILING))
+                        .addComponent(lbSingleUserSqLite, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(lbDatabaseType, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(lbDatabasePath)
-                    .addComponent(tfDatabasePath, javax.swing.GroupLayout.PREFERRED_SIZE, 23, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(lbDatabasePath, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(tfDatabasePath, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(bnDatabasePathFileOpen))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(tbDbHostname, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(lbHostName))
+                    .addComponent(lbHostName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(tbDbPort, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(lbPort))
+                    .addComponent(lbPort, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(tbDbUsername, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(lbUserName))
+                    .addComponent(lbUserName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(jpDbPassword, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(lbUserPassword))
+                    .addComponent(lbUserPassword, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(lbFullDbPath, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(lbDatabaseDesc, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(filler1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGroup(pnSQLiteSettingsLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(pnSQLiteSettingsLayout.createSequentialGroup()
+                        .addComponent(lbDatabaseDesc, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18)
+                        .addComponent(filler1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(dataBaseFileScrollPane, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap())
         );
 
@@ -312,11 +345,11 @@ public class EamDbSettingsDialog extends JDialog {
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addGap(10, 10, 10)
-                .addComponent(pnSQLiteSettings, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 11, Short.MAX_VALUE)
+                .addContainerGap()
+                .addComponent(pnSQLiteSettings, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addComponent(pnButtons, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(10, 10, 10))
+                .addContainerGap())
         );
 
         pack();
@@ -357,6 +390,7 @@ public class EamDbSettingsDialog extends JDialog {
             }
             try {
                 tfDatabasePath.setText(databaseFile.getCanonicalPath());
+                tfDatabasePath.setCaretPosition(tfDatabasePath.getText().length());
                 valid();
             } catch (IOException ex) {
                 logger.log(Level.SEVERE, "Failed to get path of selected database file", ex); // NON-NLS
@@ -369,7 +403,7 @@ public class EamDbSettingsDialog extends JDialog {
             case POSTGRESQL:
                 if (dbSettingsPostgres.verifyConnection()) {
                     if (dbSettingsPostgres.verifyDatabaseExists()) {
-                        if( dbSettingsPostgres.verifyDatabaseSchema()) {
+                        if (dbSettingsPostgres.verifyDatabaseSchema()) {
                             testingStatus = DatabaseTestResult.TESTEDOK;
                         } else {
                             testingStatus = DatabaseTestResult.SCHEMA_INVALID;
@@ -382,8 +416,8 @@ public class EamDbSettingsDialog extends JDialog {
                 }
                 break;
             case SQLITE:
-                if (dbSettingsSqlite.dbFileExists()){
-                    if(dbSettingsSqlite.verifyConnection()) {
+                if (dbSettingsSqlite.dbFileExists()) {
+                    if (dbSettingsSqlite.verifyConnection()) {
                         if (dbSettingsSqlite.verifyDatabaseSchema()) {
                             testingStatus = DatabaseTestResult.TESTEDOK;
                         } else {
@@ -418,10 +452,10 @@ public class EamDbSettingsDialog extends JDialog {
                 }
                 if (!result) {
                     // Remove the incomplete database
-                    if(dbCreated){
+                    if (dbCreated) {
                         dbSettingsPostgres.deleteDatabase();
                     }
-                    
+
                     JOptionPane.showMessageDialog(WindowManager.getDefault().getMainWindow(),
                             Bundle.EamDbSettingsDialog_okButton_createPostgresDbError_message(),
                             Bundle.EamDbSettingsDialog_okButton_createDbError_title(),
@@ -439,10 +473,10 @@ public class EamDbSettingsDialog extends JDialog {
                             && dbSettingsSqlite.insertDefaultDatabaseContent();
                 }
                 if (!result) {
-                    if(dbCreated){
+                    if (dbCreated) {
                         dbSettingsSqlite.deleteDatabase();
                     }
-                                        
+
                     JOptionPane.showMessageDialog(WindowManager.getDefault().getMainWindow(),
                             Bundle.EamDbSettingsDialog_okButton_createSQLiteDbError_message(),
                             Bundle.EamDbSettingsDialog_okButton_createDbError_title(),
@@ -455,10 +489,13 @@ public class EamDbSettingsDialog extends JDialog {
         testingStatus = DatabaseTestResult.TESTEDOK;
         valid();
     }
+
     /**
-     * Returns if changes to the central repository configuration were successfully applied
-     * 
-     * @return true if the database configuration was successfully changed false if it was not
+     * Returns if changes to the central repository configuration were
+     * successfully applied
+     *
+     * @return true if the database configuration was successfully changed false
+     *         if it was not
      */
     boolean wasConfigurationChanged() {
         return configurationChanged;
@@ -481,12 +518,12 @@ public class EamDbSettingsDialog extends JDialog {
                     Bundle.EamDbSettingsDialog_okButton_databaseConnectionFailed_message(),
                     Bundle.EamDbSettingsDialog_okButton_databaseConnectionFailed_title(),
                     JOptionPane.WARNING_MESSAGE);
-        } else if (testingStatus == DatabaseTestResult.SCHEMA_INVALID){
+        } else if (testingStatus == DatabaseTestResult.SCHEMA_INVALID) {
             // There's an existing database or file, but it's not in our format. 
             JOptionPane.showMessageDialog(WindowManager.getDefault().getMainWindow(),
                     Bundle.EamDbSettingsDialog_okButton_corruptDatabaseExists_message(),
                     Bundle.EamDbSettingsDialog_okButton_corruptDatabaseExists_title(),
-                    JOptionPane.WARNING_MESSAGE);           
+                    JOptionPane.WARNING_MESSAGE);
         } else if (testingStatus == DatabaseTestResult.DB_DOES_NOT_EXIST) {
             //database doesn't exist do you want to create
             if (JOptionPane.YES_OPTION == JOptionPane.showConfirmDialog(WindowManager.getDefault().getMainWindow(),
@@ -580,15 +617,16 @@ public class EamDbSettingsDialog extends JDialog {
         customizeComponents();
     }//GEN-LAST:event_cbDatabaseTypeActionPerformed
 
-    private void updateFullDbPath(){
-        lbFullDbPath.setText(tfDatabasePath.getText() + File.separator + CENTRAL_REPO_DB_NAME + CENTRAL_REPO_SQLITE_EXT);
+    private void updateFullDbPath() {
+        dataBaseFileTextArea.setText(tfDatabasePath.getText() + File.separator + CENTRAL_REPO_DB_NAME + CENTRAL_REPO_SQLITE_EXT);
+        dataBaseFileTextArea.setCaretPosition(dataBaseFileTextArea.getText().length());
     }
-    
+
     private void displayDatabaseSettings(boolean isPostgres) {
         lbDatabasePath.setVisible(!isPostgres);
         tfDatabasePath.setVisible(!isPostgres);
         lbDatabaseDesc.setVisible(!isPostgres);
-        lbFullDbPath.setVisible(!isPostgres);
+        dataBaseFileTextArea.setVisible(!isPostgres);
         lbSingleUserSqLite.setVisible(!isPostgres);
         bnDatabasePathFileOpen.setVisible(!isPostgres);
         lbHostName.setVisible(isPostgres);
@@ -852,13 +890,14 @@ public class EamDbSettingsDialog extends JDialog {
     private javax.swing.ButtonGroup bnGrpDatabasePlatforms;
     private javax.swing.JButton bnOk;
     private javax.swing.JComboBox<EamDbPlatformEnum> cbDatabaseType;
+    private javax.swing.JScrollPane dataBaseFileScrollPane;
+    private javax.swing.JTextArea dataBaseFileTextArea;
     private javax.swing.JFileChooser fcDatabasePath;
     private javax.swing.Box.Filler filler1;
     private javax.swing.JPasswordField jpDbPassword;
     private javax.swing.JLabel lbDatabaseDesc;
     private javax.swing.JLabel lbDatabasePath;
     private javax.swing.JLabel lbDatabaseType;
-    private javax.swing.JLabel lbFullDbPath;
     private javax.swing.JLabel lbHostName;
     private javax.swing.JLabel lbPort;
     private javax.swing.JLabel lbSingleUserSqLite;

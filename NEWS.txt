@@ -1,9 +1,172 @@
+---------------- VERSION 4.12.0  --------------
+Collection
+- Added ability to configure a USB drive to use new logical imager tool.
+- Added logical imager tool that runs on a live Windows computer and saves results to a USB drive.
+- Added ability to import logical imager results into Autopsy as a data source.
+
+Ingest Modules:
+- Changed file type detection so that Tika does not rely only on extension.
+- Email ingest module assigns thread IDs to messages
+- Android ingest modules store thread ID from their databases.
+
+Content Viewers (lower right of UI):
+- New “Text” viewer that consolidates previous Strings and “Indexed Text” viewers.
+- New “Translation” panel was added to the new “Text” viewer.
+- Added integration with Google and Bing translation (credentials required)
+- Redesigned “Other Occurrences” viewer to have 4th column with details of selected item.
+- Added Willi Ballentin’s “Registry Hive Viewer” panel to the “Application” viewer.
+- Improved HTML viewer to use style sheets and better layout.
+- Added ability to draw a box on a picture while tagging it.
+
+Result Table (upper right of UI)
+- Added paging to all views for faster loading of large data sets.
+- Improved speed of displaying results when a column was sorted.
+
+Reporting
+- Portable cases can contain files marked as Interesting Items
+- Portable cases can be compressed and chunked
+- “Files - Text” report can use either tabs or commas as the delimiter
+- “Files - Text” report better handles Unicode text.
+- Added ability to create a CSV report for the contents of a table
+- HTML report for tagged pictures includes a copy with the overlay box
+
+Communications:
+- Added Account Summary view
+- Added Contacts panel to show all contacts associated with an account.
+- Added Media panel to show media attachments associated with an account
+- Added filter to show accounts if they involved with the most recent messages.
+- Messages can be grouped by thread.
+
+Auto Ingest
+- New Test button was added to help diagnose permission and configuration issues.
+
+Documentation:
+- Created new Triage Standard Operating Procedure (SOP) section to the User Docs
+
+---------------- VERSION 4.11.0  --------------
+New Features:
+
+Adding Data: 
+- Hashes can optionally be entered when adding a disk image data source to a case.
+- Acquisition details can be stored when the data source is added. 
+
+
+Ingest Modules:
+- Added support for Microsoft Edge browser (cookies, history, and bookmarks)
+- Added support for Safari web browser (downloads, cookies, history, and bookmarks)
+- Expanded Chrome browser support to include cache parsing and form/auto fill. 
+- Expanded Firefox browser support to extract form/auto fill fields.
+- Parse Zone.Identifier files to identify the source of files.
+- Added a TSK_SOURCE artifact to downloaded files to  help users trace back to where it came from. 
+- Added support for parsing vCards (virtual cards).
+- Extract more information about Windows user accounts (number of logins, creation date, and last login)
+- Detect more operating system types, which get saved as a TSK_OS_INFO artifact. 
+- Detect Android media cards, which gets saved as a TSK_DATA_SOURCE_USAGE artifact. 
+
+
+UI:
+- The Application content viewer now displays HTML files.
+- Video playback now uses gstreamer on 64-bit systems, which supports more video formats.
+- Pictures can be rotated and zoomed in the Application content viewer.
+- The Other Occurrences content viewer layout was reorganized to make viewing the data easier.
+- New "Data Source Summary" panel shows high-level statistics and details about the data sources in the case. 
+- Data sources are now listed in the data sources tree in alphabetical order.
+- The presentation of finding common properties within a case was revised to group results in a more helpful way.
+
+
+Report / Export: 
+- Portable Cases can be created based on tagged data.  These cases contain a subset of the case data and can be opened anywhere. 
+- Users can now choose tabs or commas as the delimiter for a files report.
+- Case notes are included in the HTML report.
+
+
+Other:
+- Added a new file type that allows module writers to specify a file based on its byte range. 
+- Data sources can be analyzed and have a CASE/UCO report generated using only the command line. 
+
+
+Bug Fixes:
+- Decreased the time required to execute inter-case common properties searches of the Central Repository.
+- Assorted small bug fixes are included.
+
+
+---------------- VERSION 4.10.0  --------------
+New Features:
+- Users can now view information on all cases/data sources in the Central 
+Repository.
+- SSID, MAC address, IMEI, IMSI, and ICCID properties can now be added to the 
+Central Repository by the Correlation Engine ingest module. 
+- The Correlation Engine ingest module can be configured to flag any occurrences 
+of SSID, MAC address, IMEI, IMSI, and ICCID properties that have been previously 
+added to the Central Repository.
+- File type filtering for common properties search is now supported.
+- Common properties search results can now be viewed by case and data source 
+within the case.
+- Users can now search the Central Repository for property instances with a 
+given value.
+- OCR text extraction for keyword search now supports languages other than 
+English, if language packs are installed.
+- Added the ability for examiners to select the time zone for displaying dates.
+- Custom headers and footers can now be added to HTML reports.
+- Added ability to either enter or generate hashes of image data sources.
+- Data sources that fail hash verification are now flagged with interesting 
+item artifacts by the Data Source Integrity ingest module (formerly known as the 
+E01 Verifier ingest module).
+- Added a report module to export data in CASE/UCO format.
+- Ingest filters and interesting file sets can now be defined with multiple 
+extensions included in a single condition/rule.
+
+Bug Fixes:
+- The Images/Videos Gallery now works for multi-user cases.
+- Duplicate interesting item and EXIF metadata artifacts are no longer created 
+when you run the modules that generate them more than once.
+- The Application content viewer now displays SQLite table column names even 
+when the table is empty.
+- Assorted small bug fixes are included.
+
+
+---------------- VERSION 4.9.1  --------------
+Bug Fixes:
+- Fixed possible ingest deadlock from Image Gallery database inserts.
+- Image Gallery does not need lock on Case DB during pre-population, which makes UI more responsive.
+- Other misc Image Gallery fixes.
+
+
+---------------- VERSION 4.9.0  --------------
+New Features:
+- Removed data from table that are time intensive and can be found in content viewers (such as hash set hits)
+- Added ability to find common items (files, emails, etc.) between current case and past cases using the Central Repository. 
+- Added ability to ignore common items that exist in a large number of cases by using Central Repository data. 
+- Data is validated and normalized before being entered into the Central Repository.
+- Allow users to specify that an ad-hoc keyword search should not be saved to database
+- New “Annotations” content viewer that shows all tags and comments associated with an item
+- Added 2 icons to the table to show the item’s score (if it is notable or suspicious) and if it has a comment. 
+- Added column to the table to show previous number of occurrences. 
+- Tags are now associated with the user (in a multi-user environment) and you can hide other people’s tags
+- New Display options area that unifies various new settings. 
+- Hash sets can be copied into the user’s config folder (AppData), which makes it easier to run Autopsy from a Live Triage USB and not care about what drive letter it gets.
+- Image Gallery stores its groups and seen status in Case DB instead of its own. 
+- Image Gallery works better in multi-user setups and reloads the database when other nodes add data sources.
+- Image Gallery saves which user saw a group and gives user option of seeing only their unseen groups or all unseen groups. 
+- Saves last export location and pre-populates that in the file picker
+- Provide feedback about why some right click options are disabled (ingest is running, not file content, etc.)
+
+Bug Fixes:
+- Substring keyword search is more accurate (now uses regular expression)
+- New text extractor for SQLite that better deals with full text search tables
+- Better deal with Unicode text files that do not have Byte Order Marker
+- Embedded file extractor module is now faster because it uses a different 7ZIP API.
+- Fixed various HTML report bugs
+- Duplicate hash set hits are not created when you run the Hash Ingest Module twice. 
+- Auto ingest (in Experimental) scan times of input folders is faster.
+
+
 ---------------- VERSION 4.8.0  --------------
 New Features:
 - Data Source Grouping:
 -- The case tree view can now be grouped by data source.
 -- Keyword and file search can now be restricted to a data source.
-- Central Repository / Corrrelation:
+- Central Repository / Correlation:
 -- New common files search feature that finds files that exist in multiple devices in the same case. 
 -- The Other Occurrences content viewer now shows matches in the current case (in addition to central repository).
 -- Central repository options panel now shows cases that are in repo.
@@ -20,18 +183,18 @@ New Features:
 -- An interesting file artifact is now created when a "zip bomb" is detected.
 -- An object detection ingest module was added to the Experimental module. It requires an OpenCV trained model. 
 
-
 Bug Fixes:
 - Expanding the case tree is more efficient.
 - Improved "zip bomb" detection.
 - Assorted small bug fixes are included.
+
 
 ---------------- VERSION 4.7.0  --------------
 New Features: 
 - A graph visualization was added to the Communications tool to make it easier to find messages and relationships.
 - A new "Application" content viewer (lower right) that will contain file-type specific viewers (to reduce number of tabs).
 - New viewer for SQLite databases (in Application content viewer)
-- New viewer for binary PLists (in Appilcation content viewer)
+- New viewer for binary PLists (in Application content viewer)
 - L01 files can be imported as data sources.
 - Ingest filters can now use date range conditions for triage. 
 - Passwords to open password protected archive files can be entered (by right clicking on the file).

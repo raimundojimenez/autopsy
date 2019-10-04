@@ -19,14 +19,16 @@
 package org.sleuthkit.autopsy.communications;
 
 import com.google.common.eventbus.Subscribe;
-import java.awt.Dimension;
+import java.awt.Component;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.util.List;
 import java.util.stream.Collectors;
-import javax.swing.GroupLayout;
 import javax.swing.ImageIcon;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
-import javax.swing.LayoutStyle;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 import org.openide.windows.Mode;
@@ -61,12 +63,14 @@ public final class CVTTopComponent extends TopComponent {
         associateLookup(proxyLookup);
         // Make sure the Global Actions Context is proxying the selection of the active tab.
         browseVisualizeTabPane.addChangeListener(changeEvent -> {
-            Lookup.Provider selectedComponent = (Lookup.Provider) browseVisualizeTabPane.getSelectedComponent();
-            proxyLookup.setNewLookups(selectedComponent.getLookup());
-            filtersPane.setDeviceAccountTypeEnabled(browseVisualizeTabPane.getSelectedIndex() != 0);
+            Component selectedComponent = browseVisualizeTabPane.getSelectedComponent();
+            if(selectedComponent instanceof Lookup.Provider) {
+                Lookup lookup = ((Lookup.Provider)selectedComponent).getLookup();
+                proxyLookup.setNewLookups(lookup);
+            }
         });
-
-
+        
+        
         /*
          * Connect the filtersPane to the accountsBrowser and visualizaionPanel
          * via an Eventbus
@@ -74,6 +78,10 @@ public final class CVTTopComponent extends TopComponent {
         CVTEvents.getCVTEventBus().register(this);
         CVTEvents.getCVTEventBus().register(vizPanel);
         CVTEvents.getCVTEventBus().register(accountsBrowser);
+        CVTEvents.getCVTEventBus().register(filtersPane);
+        
+        mainSplitPane.setResizeWeight(0.5);
+        mainSplitPane.setDividerLocation(0.25);
     }
 
     @Subscribe
@@ -88,39 +96,30 @@ public final class CVTTopComponent extends TopComponent {
      */
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
+        GridBagConstraints gridBagConstraints;
 
+        mainSplitPane = new JSplitPane();
+        filtersPane = new FiltersPanel();
         browseVisualizeTabPane = new JTabbedPane();
         accountsBrowser = new AccountsBrowser();
         vizPanel = new VisualizationPanel();
-        filtersPane = new FiltersPanel();
+
+        setLayout(new GridBagLayout());
+
+        mainSplitPane.setLeftComponent(filtersPane);
 
         browseVisualizeTabPane.setFont(new Font("Tahoma", 0, 18)); // NOI18N
         browseVisualizeTabPane.addTab(NbBundle.getMessage(CVTTopComponent.class, "CVTTopComponent.accountsBrowser.TabConstraints.tabTitle_1"), new ImageIcon(getClass().getResource("/org/sleuthkit/autopsy/communications/images/table.png")), accountsBrowser); // NOI18N
         browseVisualizeTabPane.addTab(NbBundle.getMessage(CVTTopComponent.class, "CVTTopComponent.vizPanel.TabConstraints.tabTitle_1"), new ImageIcon(getClass().getResource("/org/sleuthkit/autopsy/communications/images/emblem-web.png")), vizPanel); // NOI18N
 
-        filtersPane.setMinimumSize(new Dimension(256, 495));
-
-        GroupLayout layout = new GroupLayout(this);
-        this.setLayout(layout);
-        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addGap(6, 6, 6)
-                .addComponent(filtersPane, GroupLayout.PREFERRED_SIZE, 265, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(browseVisualizeTabPane, GroupLayout.PREFERRED_SIZE, 786, Short.MAX_VALUE)
-                .addContainerGap())
-        );
-        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addGap(6, 6, 6)
-                .addComponent(filtersPane, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addGap(5, 5, 5))
-            .addGroup(GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addComponent(browseVisualizeTabPane)
-                .addContainerGap())
-        );
-
+        mainSplitPane.setRightComponent(browseVisualizeTabPane);
         browseVisualizeTabPane.getAccessibleContext().setAccessibleName(NbBundle.getMessage(CVTTopComponent.class, "CVTTopComponent.browseVisualizeTabPane.AccessibleContext.accessibleName")); // NOI18N
+
+        gridBagConstraints = new GridBagConstraints();
+        gridBagConstraints.fill = GridBagConstraints.BOTH;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        add(mainSplitPane, gridBagConstraints);
     }// </editor-fold>//GEN-END:initComponents
 
 
@@ -128,6 +127,7 @@ public final class CVTTopComponent extends TopComponent {
     private AccountsBrowser accountsBrowser;
     private JTabbedPane browseVisualizeTabPane;
     private FiltersPanel filtersPane;
+    private JSplitPane mainSplitPane;
     private VisualizationPanel vizPanel;
     // End of variables declaration//GEN-END:variables
 

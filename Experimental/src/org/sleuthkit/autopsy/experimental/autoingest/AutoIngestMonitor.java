@@ -21,7 +21,6 @@ package org.sleuthkit.autopsy.experimental.autoingest;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -38,9 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-import org.sleuthkit.autopsy.casemodule.Case;
-import org.sleuthkit.autopsy.casemodule.CaseActionException;
-import org.sleuthkit.autopsy.casemodule.CaseMetadata;
 import org.sleuthkit.autopsy.coordinationservice.CoordinationService;
 import org.sleuthkit.autopsy.coordinationservice.CoordinationService.CoordinationServiceException;
 import org.sleuthkit.autopsy.coreutils.Logger;
@@ -50,7 +46,6 @@ import org.sleuthkit.autopsy.events.AutopsyEventPublisher;
 import org.sleuthkit.autopsy.experimental.autoingest.AutoIngestJob.ProcessingStatus;
 import static org.sleuthkit.autopsy.experimental.autoingest.AutoIngestJob.ProcessingStatus.DELETED;
 import static org.sleuthkit.autopsy.experimental.autoingest.AutoIngestJob.ProcessingStatus.PENDING;
-import org.sleuthkit.autopsy.experimental.autoingest.AutoIngestManager.CaseDeletionResult;
 import org.sleuthkit.autopsy.experimental.autoingest.AutoIngestManager.Event;
 import org.sleuthkit.autopsy.experimental.autoingest.AutoIngestNodeControlEvent.ControlEventType;
 
@@ -197,6 +192,7 @@ final class AutoIngestMonitor extends Observable implements PropertyChangeListen
                     runningJob.setModuleRuntimesSnapshot(job.getModuleRunTimes());
                     runningJob.setProcessingStage(job.getProcessingStage(), job.getProcessingStageStartDate());
                     runningJob.setProcessingStatus(job.getProcessingStatus());
+                    break;
                 }
             }
             setChanged();
@@ -359,13 +355,17 @@ final class AutoIngestMonitor extends Observable implements PropertyChangeListen
                             newJobsSnapshot.addOrReplaceCompletedJob(job);
                             break;
                         case DELETED:
+                            /*
+                             * Ignore jobs marked as deleted.
+                             */
                             break;
                         default:
                             LOGGER.log(Level.SEVERE, "Unknown AutoIngestJobData.ProcessingStatus");
                             break;
                     }
-                } catch (InterruptedException ex) {
-                    LOGGER.log(Level.SEVERE, String.format("Unexpected interrupt while retrieving coordination service node data for '%s'", node), ex);
+                } catch (InterruptedException ignore) {
+                    LOGGER.log(Level.WARNING, "Interrupt while retrieving coordination service node data");
+                    return newJobsSnapshot;
                 } catch (AutoIngestJobNodeData.InvalidDataException ex) {
                     LOGGER.log(Level.SEVERE, String.format("Unable to use node data for '%s'", node), ex);
                 } catch (AutoIngestJob.AutoIngestJobException ex) {
@@ -375,7 +375,7 @@ final class AutoIngestMonitor extends Observable implements PropertyChangeListen
 
             return newJobsSnapshot;
 
-        } catch (CoordinationServiceException ex) {
+        } catch (CoordinationServiceException | InterruptedException ex) {
             LOGGER.log(Level.SEVERE, "Failed to get node list from coordination service", ex);
             return new JobsSnapshot();
         }
@@ -654,58 +654,6 @@ final class AutoIngestMonitor extends Observable implements PropertyChangeListen
 
             }
         }
-    }
-
-    /**
-     * Deletes a case. This includes deleting the case directory, the text
-     * index, and the case database. This does not include the directories
-     * containing the data sources and their manifests.
-     *
-     * @param job The job whose case you want to delete
-     *
-     * @return A result code indicating success, partial success, or failure.
-     */
-    CaseDeletionResult deleteCase(AutoIngestJob job) {
-        synchronized (jobsLock) {
-            String caseName = job.getManifest().getCaseName();
-            Path metadataFilePath = job.getCaseDirectoryPath().resolve(caseName + CaseMetadata.getFileExtension());
-
-            try {
-                CaseMetadata metadata = new CaseMetadata(metadataFilePath);
-                Case.deleteCase(metadata);
-
-            } catch (CaseMetadata.CaseMetadataException ex) {
-                LOGGER.log(Level.SEVERE, String.format("Failed to get case metadata file %s for case %s at %s", metadataFilePath.toString(), caseName, job.getCaseDirectoryPath().toString()), ex);
-                return CaseDeletionResult.FAILED;
-            } catch (CaseActionException ex) {
-                LOGGER.log(Level.SEVERE, String.format("Failed to physically delete case %s at %s", caseName, job.getCaseDirectoryPath().toString()), ex);
-                return CaseDeletionResult.FAILED;
-            }
-
-            // Update the state of completed jobs associated with this case to indicate
-            // that the case has been deleted
-            for (AutoIngestJob completedJob : getCompletedJobs()) {
-                if (caseName.equals(completedJob.getManifest().getCaseName())) {
-                    try {
-                        completedJob.setProcessingStatus(DELETED);
-                        AutoIngestJobNodeData nodeData = new AutoIngestJobNodeData(completedJob);
-                        coordinationService.setNodeData(CoordinationService.CategoryNode.MANIFESTS, completedJob.getManifest().getFilePath().toString(), nodeData.toArray());
-                    } catch (CoordinationServiceException | InterruptedException ex) {
-                        LOGGER.log(Level.SEVERE, String.format("Failed to update completed job node data for %s when deleting case %s", completedJob.getManifest().getFilePath().toString(), caseName), ex);
-                        return CaseDeletionResult.PARTIALLY_DELETED;
-                    }
-                }
-            }
-
-            // Remove jobs associated with this case from the completed jobs collection.
-            jobsSnapshot.completedJobs.removeIf((AutoIngestJob completedJob)
-                    -> completedJob.getManifest().getCaseName().equals(caseName));
-
-            // Publish a message to update auto ingest nodes.
-            eventPublisher.publishRemotely(new AutoIngestCaseDeletedEvent(caseName, LOCAL_HOST_NAME, AutoIngestManager.getSystemUserNameProperty()));
-        }
-
-        return CaseDeletionResult.FULLY_DELETED;
     }
 
     /**

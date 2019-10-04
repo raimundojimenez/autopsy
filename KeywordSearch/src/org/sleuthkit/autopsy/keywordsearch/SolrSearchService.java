@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2015-2018 Basis Technology Corp.
+ * Copyright 2015-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,10 @@
  */
 package org.sleuthkit.autopsy.keywordsearch;
 
+import com.google.common.eventbus.Subscribe;
 import java.io.File;
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -29,22 +31,26 @@ import java.util.logging.Level;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
-import org.apache.commons.lang.math.NumberUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.math.NumberUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
 import org.openide.util.NbBundle;
 import org.openide.util.lookup.ServiceProvider;
 import org.openide.util.lookup.ServiceProviders;
+import org.sleuthkit.autopsy.appservices.AutopsyService;
 import org.sleuthkit.autopsy.casemodule.Case;
 import org.sleuthkit.autopsy.casemodule.CaseMetadata;
 import org.sleuthkit.autopsy.core.RuntimeProperties;
 import org.sleuthkit.autopsy.coreutils.FileUtil;
 import org.sleuthkit.autopsy.coreutils.Logger;
-import org.sleuthkit.autopsy.appservices.AutopsyService;
-import org.sleuthkit.autopsy.progress.ProgressIndicator;
+import org.sleuthkit.autopsy.coreutils.MessageNotifyUtil;
 import org.sleuthkit.autopsy.keywordsearchservice.KeywordSearchService;
 import org.sleuthkit.autopsy.keywordsearchservice.KeywordSearchServiceException;
+import org.sleuthkit.autopsy.progress.ProgressIndicator;
+import org.sleuthkit.autopsy.textextractors.TextExtractor;
+import org.sleuthkit.autopsy.textextractors.TextExtractorFactory;
+import org.sleuthkit.datamodel.Blackboard;
 import org.sleuthkit.datamodel.BlackboardArtifact;
 import org.sleuthkit.datamodel.Content;
 import org.sleuthkit.datamodel.TskCoreException;
@@ -56,8 +62,8 @@ import org.sleuthkit.datamodel.TskCoreException;
 @ServiceProviders(value = {
     @ServiceProvider(service = KeywordSearchService.class)
     ,
-    @ServiceProvider(service = AutopsyService.class)}
-)
+    @ServiceProvider(service = AutopsyService.class)
+})
 public class SolrSearchService implements KeywordSearchService, AutopsyService {
 
     private static final String BAD_IP_ADDRESS_FORMAT = "ioexception occurred when talking to server"; //NON-NLS
@@ -75,8 +81,8 @@ public class SolrSearchService implements KeywordSearchService, AutopsyService {
      * 1) Indexing an artifact created during while either the file level ingest
      * module pipeline or the first stage data source level ingest module
      * pipeline of an ingest job is running.
-     * 
-     * 2) Indexing a report.  
+     *
+     * 2) Indexing a report.
      *
      * @param content The content to index.
      *
@@ -112,20 +118,27 @@ public class SolrSearchService implements KeywordSearchService, AutopsyService {
                 return;
             }
             try {
-                ingester.indexMetaDataOnly(artifact);
-                ingester.indexText(new ArtifactTextExtractor(), artifact, null);
-            } catch (Ingester.IngesterException ex) {
-                throw new TskCoreException(ex.getCause().getMessage(), ex);
+                TextExtractor blackboardExtractor = TextExtractorFactory.getExtractor(content, null);
+                Reader blackboardExtractedTextReader = blackboardExtractor.getReader();
+                String sourceName = artifact.getDisplayName() + "_" + artifact.getArtifactID();
+                ingester.indexMetaDataOnly(artifact, sourceName);
+                ingester.indexText(blackboardExtractedTextReader, artifact.getArtifactID(), sourceName, content, null);
+            } catch (Ingester.IngesterException | TextExtractorFactory.NoTextExtractorFound | TextExtractor.InitReaderException ex) {
+                throw new TskCoreException("Error indexing artifact", ex);
             }
         } else {
             try {
-                ingester.indexText(new TikaTextExtractor(), content, null);
-            } catch (Ingester.IngesterException ex) {
+                TextExtractor contentExtractor = TextExtractorFactory.getExtractor(content, null);
+                Reader contentExtractedTextReader = contentExtractor.getReader();
+                ingester.indexText(contentExtractedTextReader, content.getId(), content.getName(), content, null);
+            } catch (TextExtractorFactory.NoTextExtractorFound | Ingester.IngesterException | TextExtractor.InitReaderException ex) {
                 try {
                     // Try the StringsTextExtractor if Tika extractions fails.
-                    ingester.indexText(new StringsTextExtractor(), content, null);
-                } catch (Ingester.IngesterException ex1) {
-                    throw new TskCoreException(ex.getCause().getMessage(), ex1);
+                    TextExtractor stringsExtractor = TextExtractorFactory.getStringsExtractor(content, null);
+                    Reader stringsExtractedTextReader = stringsExtractor.getReader();
+                    ingester.indexText(stringsExtractedTextReader, content.getId(), content.getName(), content, null);
+                } catch (Ingester.IngesterException | TextExtractor.InitReaderException ex1) {
+                    throw new TskCoreException("Error indexing content", ex1);
                 }
             }
             ingester.commit();
@@ -223,10 +236,6 @@ public class SolrSearchService implements KeywordSearchService, AutopsyService {
                 "SolrSearchService.exceptionMessage.noCurrentSolrCore"));
         throw new KeywordSearchServiceException(NbBundle.getMessage(SolrSearchService.class,
                 "SolrSearchService.exceptionMessage.noCurrentSolrCore"));
-    }
-
-    @Override
-    public void close() throws IOException {
     }
 
     @Override
@@ -379,6 +388,11 @@ public class SolrSearchService implements KeywordSearchService, AutopsyService {
         } catch (KeywordSearchModuleException ex) {
             throw new AutopsyServiceException(String.format("Failed to open or create core for %s", caseDirPath), ex);
         }
+        if (context.cancelRequested()) {
+            return;
+        }
+
+        theCase.getSleuthkitCase().registerForEvents(this);
 
         progress.progress(Bundle.SolrSearch_complete_msg(), totalNumProgressUnits);
     }
@@ -411,6 +425,29 @@ public class SolrSearchService implements KeywordSearchService, AutopsyService {
         } catch (KeywordSearchModuleException ex) {
             throw new AutopsyServiceException(String.format("Failed to close core for %s", context.getCase().getCaseDirectory()), ex);
         }
+
+        context.getCase().getSleuthkitCase().unregisterForEvents(this);
+    }
+
+    /**
+     * Event handler for ArtifactsPostedEvents from SleuthkitCase.
+     *
+     * @param event The ArtifactsPostedEvent to handle.
+     */
+    @NbBundle.Messages("SolrSearchService.indexingError=Unable to index blackboard artifact.")
+    @Subscribe
+    void handleNewArtifacts(Blackboard.ArtifactsPostedEvent event) {
+        for (BlackboardArtifact artifact : event.getArtifacts()) {
+            if (artifact.getArtifactTypeID() != BlackboardArtifact.ARTIFACT_TYPE.TSK_KEYWORD_HIT.getTypeID()) { //don't index KWH artifacts.
+                try {
+                    index(artifact);
+                } catch (TskCoreException ex) {
+                    //TODO: is this the right error handling?
+                    logger.log(Level.SEVERE, "Unable to index blackboard artifact " + artifact.getArtifactID(), ex); //NON-NLS
+                    MessageNotifyUtil.Notify.error(Bundle.SolrSearchService_indexingError(), artifact.getDisplayName());
+                }
+            }
+        }
     }
 
     /**
@@ -437,9 +474,12 @@ public class SolrSearchService implements KeywordSearchService, AutopsyService {
         final Ingester ingester = Ingester.getDefault();
 
         try {
-            ingester.indexMetaDataOnly(artifact);
-            ingester.indexText(new ArtifactTextExtractor(), artifact, null);
-        } catch (Ingester.IngesterException ex) {
+            String sourceName = artifact.getDisplayName() + "_" + artifact.getArtifactID();
+            TextExtractor blackboardExtractor = TextExtractorFactory.getExtractor((Content) artifact, null);
+            Reader blackboardExtractedTextReader = blackboardExtractor.getReader();
+            ingester.indexMetaDataOnly(artifact, sourceName);
+            ingester.indexText(blackboardExtractedTextReader, artifact.getId(), sourceName, artifact, null);
+        } catch (Ingester.IngesterException | TextExtractorFactory.NoTextExtractorFound | TextExtractor.InitReaderException ex) {
             throw new TskCoreException(ex.getCause().getMessage(), ex);
         }
     }

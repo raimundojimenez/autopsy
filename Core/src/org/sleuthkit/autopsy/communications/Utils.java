@@ -20,6 +20,7 @@ package org.sleuthkit.autopsy.communications;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.TimeZone;
 import org.sleuthkit.autopsy.core.UserPreferences;
 import org.sleuthkit.autopsy.datamodel.accounts.Accounts;
 import org.sleuthkit.datamodel.Account;
@@ -27,13 +28,14 @@ import org.sleuthkit.datamodel.Account;
 /**
  * Utility class with helpers for dealing with accounts.
  */
-class Utils {
+public final class Utils {
 
     private Utils() {
     }
 
-    static ZoneId getUserPreferredZoneId() {
-        ZoneId zone = UserPreferences.displayTimesInLocalTime() ? ZoneOffset.systemDefault() : ZoneOffset.UTC;
+    static public ZoneId getUserPreferredZoneId() {
+        ZoneId zone = UserPreferences.displayTimesInLocalTime() ?
+                ZoneOffset.systemDefault() : TimeZone.getTimeZone(UserPreferences.getTimeZoneForDisplays()).toZoneId();
         return zone;
     }
 
@@ -42,7 +44,7 @@ class Utils {
      *
      * @return The path of the icon for the given Account Type.
      */
-    static final String getIconFilePath(Account.Type type) {
+    static public final String getIconFilePath(Account.Type type) {
         return Accounts.getIconFilePath(type);
     }
 

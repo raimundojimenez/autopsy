@@ -22,6 +22,8 @@ import java.awt.EventQueue;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -278,6 +280,7 @@ public final class FilesSetDefsPanel extends IngestModuleGlobalSettingsPanel imp
             //enable the new button
             FilesSetDefsPanel.this.newSetButton.setEnabled(canBeEnabled);
             FilesSetDefsPanel.this.importSetButton.setEnabled(canBeEnabled);
+            
             // Get the selected interesting files set and populate the set
             // components.
             FilesSet selectedSet = FilesSetDefsPanel.this.setsList.getSelectedValue();
@@ -294,14 +297,26 @@ public final class FilesSetDefsPanel extends IngestModuleGlobalSettingsPanel imp
                 FilesSetDefsPanel.this.copySetButton.setEnabled(canBeEnabled);
                 FilesSetDefsPanel.this.exportSetButton.setEnabled(true);
                 // Populate the rule definitions list, sorted by name.
-                TreeMap<String, FilesSet.Rule> rules = new TreeMap<>(selectedSet.getRules());
-                rules.values().forEach((rule) -> {
+                List<FilesSet.Rule> rules = new ArrayList<>(selectedSet.getRules().values());
+                Collections.sort(rules, new Comparator<FilesSet.Rule>() {
+                    @Override
+                    public int compare(FilesSet.Rule rule1, FilesSet.Rule rule2) {
+                        return rule1.toString().compareTo(rule2.toString());
+                    }
+                });
+                rules.forEach((rule) -> {
                     FilesSetDefsPanel.this.rulesListModel.addElement(rule);
                 });
                 // Select the first rule by default.
                 if (!FilesSetDefsPanel.this.rulesListModel.isEmpty()) {
                     FilesSetDefsPanel.this.rulesList.setSelectedIndex(0);
                 }
+            } else {
+                // Disable the edit, delete, copy, and export buttons
+                FilesSetDefsPanel.this.editSetButton.setEnabled(false);
+                FilesSetDefsPanel.this.deleteSetButton.setEnabled(false);
+                FilesSetDefsPanel.this.copySetButton.setEnabled(false);
+                FilesSetDefsPanel.this.exportSetButton.setEnabled(false);
             }
         }
 
@@ -655,6 +670,7 @@ public final class FilesSetDefsPanel extends IngestModuleGlobalSettingsPanel imp
         setDescriptionTextArea.setLineWrap(true);
         setDescriptionTextArea.setRows(6);
         setDescriptionTextArea.setMinimumSize(new java.awt.Dimension(10, 22));
+        setDescriptionTextArea.setOpaque(false);
         setDescScrollPanel.setViewportView(setDescriptionTextArea);
 
         editSetButton.setFont(editSetButton.getFont().deriveFont(editSetButton.getFont().getStyle() & ~java.awt.Font.BOLD, 11));
@@ -789,11 +805,13 @@ public final class FilesSetDefsPanel extends IngestModuleGlobalSettingsPanel imp
         jTextArea1.setRows(3);
         jTextArea1.setText(org.openide.util.NbBundle.getMessage(FilesSetDefsPanel.class, "FilesSetDefsPanel.interesting.jTextArea1.text")); // NOI18N
         jTextArea1.setWrapStyleWord(true);
+        jTextArea1.setOpaque(false);
         jScrollPane2.setViewportView(jTextArea1);
 
         org.openide.awt.Mnemonics.setLocalizedText(jLabel7, org.openide.util.NbBundle.getMessage(FilesSetDefsPanel.class, "FilesSetDefsPanel.jLabel7.text")); // NOI18N
 
         mimeTypeComboBox.setBackground(new java.awt.Color(240, 240, 240));
+        mimeTypeComboBox.setEditable(true);
         mimeTypeComboBox.setModel(new javax.swing.DefaultComboBoxModel<String>(new String[] {""}));
         mimeTypeComboBox.setEnabled(false);
         mimeTypeComboBox.setMinimumSize(new java.awt.Dimension(0, 20));
@@ -960,7 +978,7 @@ public final class FilesSetDefsPanel extends IngestModuleGlobalSettingsPanel imp
                                 .addComponent(editRuleButton)
                                 .addGap(18, 18, 18)
                                 .addComponent(deleteRuleButton)))
-                        .addGap(24, 47, Short.MAX_VALUE))))
+                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))))
         );
 
         jPanel1Layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {copySetButton, deleteSetButton, editSetButton, exportSetButton, importSetButton, newSetButton});
@@ -1060,7 +1078,7 @@ public final class FilesSetDefsPanel extends IngestModuleGlobalSettingsPanel imp
         this.setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jScrollPane1)
+            .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 800, Short.MAX_VALUE)
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)

@@ -648,6 +648,15 @@ public final class FilesSet implements Serializable {
             AbstractTextCondition(Pattern regex) {
                 this.textMatcher = new FilesSet.Rule.RegexMatcher(regex);
             }
+            
+            /**
+             * Construct a case-insensitive multi-value text condition.
+             * 
+             * @param values The list of values in which to look for a match.
+             */
+            AbstractTextCondition(List<String> values) {
+                this.textMatcher = new FilesSet.Rule.CaseInsensitiveMultiValueStringComparisionMatcher(values);
+            }
 
             /**
              * Get the text the condition matches.
@@ -824,7 +833,19 @@ public final class FilesSet implements Serializable {
                 // If there is a leading ".", strip it since 
                 // AbstractFile.getFileNameExtension() returns just the 
                 // extension chars and not the dot.
-                super(extension.startsWith(".") ? extension.substring(1) : extension, false);
+                super(normalize(extension), false);
+            }            
+            
+            /**
+             * Construct a case-insensitive file name extension condition.
+             *
+             * @param extensions The file name extensions to be matched.
+             */
+            public ExtensionCondition(List<String> extensions) {
+                // If there is a leading "." in any list value, strip it since 
+                // AbstractFile.getFileNameExtension() returns just the 
+                // extension chars and not the dot.
+                super(normalize(extensions));
             }
 
             /**
@@ -840,6 +861,34 @@ public final class FilesSet implements Serializable {
             @Override
             public boolean passes(AbstractFile file) {
                 return this.textMatches(file.getNameExtension());
+            }
+            
+            /**
+             * Strip "." from the start of extensions in the provided list.
+             * 
+             * @param extensions The list of extensions to be processed.
+             * 
+             * @return A post-processed list of extensions.
+             */
+            private static List<String> normalize(List<String> extensions) {
+                List<String> values = new ArrayList<>(extensions);
+                
+                for (int i=0; i < values.size(); i++) {
+                    values.set(i, normalize(values.get(i)));
+                }
+                
+                return values;
+            }
+            
+            /**
+             * Strip "." from the start of the provided extension.
+             * 
+             * @param extension The extension to be processed.
+             * 
+             * @return A post-processed extension.
+             */
+            private static String normalize(String extension) {
+                return extension.startsWith(".") ? extension.substring(1) : extension;
             }
 
         }
@@ -946,6 +995,48 @@ public final class FilesSet implements Serializable {
             public boolean textMatches(String subject) {
                 return pattern.matcher(subject).find();
             }
+        }
+
+        /**
+         * A text matcher that looks for a single case-insensitive string match
+         * in a multi-value list.
+         */
+        private static class CaseInsensitiveMultiValueStringComparisionMatcher implements TextMatcher {
+
+            private static final long serialVersionUID = 1L;
+            private final List<String> valuesToMatch;
+
+            /**
+             * Construct a text matcher that looks for a single case-insensitive
+             * string match in a multi-value list.
+             *
+             * @param valuesToMatch The list of values in which to look for a
+             *                      match.
+             */
+            CaseInsensitiveMultiValueStringComparisionMatcher(List<String> valuesToMatch) {
+                this.valuesToMatch = valuesToMatch;
+            }
+
+            @Override
+            public String getTextToMatch() {
+                return String.join(",", this.valuesToMatch);
+            }
+
+            @Override
+            public boolean isRegex() {
+                return false;
+            }
+
+            @Override
+            public boolean textMatches(String subject) {
+                for (String value : valuesToMatch) {
+                    if (value.equalsIgnoreCase(subject)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
         }
 
         /**

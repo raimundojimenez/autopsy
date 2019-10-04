@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2013-2018 Basis Technology Corp.
+ * Copyright 2015-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,8 @@
  */
 package org.sleuthkit.autopsy.imagegallery;
 
+import java.beans.PropertyChangeEvent;
+import java.util.EnumSet;
 import org.openide.util.NbBundle;
 import org.sleuthkit.autopsy.casemodule.Case;
 import org.sleuthkit.autopsy.casemodule.NoCurrentCaseException;
@@ -27,11 +29,12 @@ import org.sleuthkit.autopsy.ingest.IngestManager;
  * The Image/Video Gallery panel in the NetBeans provided Options Dialogs
  * accessed via Tools -> Options
  *
- * Uses {@link ImageGalleryPreferences} and {@link PerCaseProperties} to persist
- * settings
+ * Uses ImageGalleryPreferences and PerCaseProperties to persist settings
  */
 @SuppressWarnings("PMD.SingularField") // UI widgets cause lots of false positives
 final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
+
+    private static final long serialVersionUID = 1L;
 
     ImageGalleryOptionsPanel(ImageGalleryOptionsPanelController controller) {
         initComponents();
@@ -40,6 +43,10 @@ final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
         IngestManager.getInstance().addIngestJobEventListener(evt -> {
             //disable during ingest
             enabledForCaseBox.setEnabled(Case.isCaseOpen() && IngestManager.getInstance().isIngestRunning() == false);
+        });
+        Case.addEventTypeSubscriber(EnumSet.of(Case.Events.CURRENT_CASE), (PropertyChangeEvent evt) -> {
+            //disable when case is closed, enable when case is open
+            enabledForCaseBox.setEnabled(evt.getNewValue() != null && IngestManager.getInstance().isIngestRunning() == false);
         });
 
         enabledByDefaultBox.addActionListener(actionEvent -> controller.changed());
@@ -71,11 +78,6 @@ final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
 
         enabledByDefaultBox.setFont(enabledByDefaultBox.getFont().deriveFont(enabledByDefaultBox.getFont().getStyle() & ~java.awt.Font.BOLD, 11));
         org.openide.awt.Mnemonics.setLocalizedText(enabledByDefaultBox, org.openide.util.NbBundle.getMessage(ImageGalleryOptionsPanel.class, "ImageGalleryOptionsPanel.enabledByDefaultBox.text")); // NOI18N
-        enabledByDefaultBox.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                enabledByDefaultBoxActionPerformed(evt);
-            }
-        });
 
         infoIconLabel.setFont(infoIconLabel.getFont().deriveFont(infoIconLabel.getFont().getStyle() & ~java.awt.Font.BOLD, 11));
         infoIconLabel.setIcon(new javax.swing.ImageIcon(getClass().getResource("/org/sleuthkit/autopsy/imagegallery/images/info-icon-16.png"))); // NOI18N
@@ -83,11 +85,6 @@ final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
         enabledForCaseBox.setFont(enabledForCaseBox.getFont().deriveFont(enabledForCaseBox.getFont().getStyle() & ~java.awt.Font.BOLD, 11));
         org.openide.awt.Mnemonics.setLocalizedText(enabledForCaseBox, org.openide.util.NbBundle.getMessage(ImageGalleryOptionsPanel.class, "ImageGalleryOptionsPanel.enabledForCaseBox.text")); // NOI18N
         enabledForCaseBox.setToolTipText(NbBundle.getMessage(ImageGalleryOptionsPanel.class, "ImageGalleryOptionsPanel.enabledForCaseBox.toolTipText")); // NOI18N
-        enabledForCaseBox.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                enabledForCaseBoxActionPerformed(evt);
-            }
-        });
 
         unavailableDuringInjestLabel.setFont(unavailableDuringInjestLabel.getFont().deriveFont(unavailableDuringInjestLabel.getFont().getStyle() & ~java.awt.Font.BOLD, 11));
         unavailableDuringInjestLabel.setIcon(new javax.swing.ImageIcon(getClass().getResource("/org/sleuthkit/autopsy/imagegallery/images/warning16.png"))); // NOI18N
@@ -105,6 +102,7 @@ final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
         furtherDescriptionArea.setRows(5);
         furtherDescriptionArea.setText(NbBundle.getMessage(ImageGalleryOptionsPanel.class, "ImageGalleryOptionsPanel.furtherDescriptionArea.text")); // NOI18N
         furtherDescriptionArea.setWrapStyleWord(true);
+        furtherDescriptionArea.setOpaque(false);
         furtherDescriptionArea.setPreferredSize(new java.awt.Dimension(378, 74));
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
@@ -169,14 +167,6 @@ final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
         );
     }// </editor-fold>//GEN-END:initComponents
 
-    private void enabledByDefaultBoxActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_enabledByDefaultBoxActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_enabledByDefaultBoxActionPerformed
-
-    private void enabledForCaseBoxActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_enabledForCaseBoxActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_enabledForCaseBoxActionPerformed
-
     void load() {
         enabledByDefaultBox.setSelected(ImageGalleryPreferences.isEnabledByDefault());
         try {
@@ -202,7 +192,10 @@ final class ImageGalleryOptionsPanel extends javax.swing.JPanel {
         // If a case is open, save the per case setting
         try {
             Case openCase = Case.getCurrentCaseThrows();
-            ImageGalleryModule.getController().setListeningEnabled(enabledForCaseBox.isSelected());
+            ImageGalleryController controller = ImageGalleryController.getController(openCase);
+            if (controller != null) {
+                controller.setListeningEnabled(enabledForCaseBox.isSelected());
+            }
             new PerCaseProperties(openCase).setConfigSetting(ImageGalleryModule.getModuleName(), PerCaseProperties.ENABLED, Boolean.toString(enabledForCaseBox.isSelected()));
         } catch (NoCurrentCaseException ex) {
             // It's not an error if there's no case open

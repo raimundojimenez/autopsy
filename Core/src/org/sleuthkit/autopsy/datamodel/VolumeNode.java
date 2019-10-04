@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2011-2014 Basis Technology Corp.
+ * Copyright 2011-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,18 @@ import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+import java.util.logging.Level;
 import javax.swing.Action;
-import org.openide.nodes.Children;
+import org.apache.commons.lang3.tuple.Pair;
 import org.openide.nodes.Sheet;
 import org.openide.util.NbBundle;
 import org.sleuthkit.autopsy.casemodule.Case;
+import org.sleuthkit.autopsy.centralrepository.datamodel.CorrelationAttributeInstance;
+import org.sleuthkit.autopsy.corecomponents.DataResultViewerTable;
+import org.sleuthkit.autopsy.coreutils.Logger;
+import static org.sleuthkit.autopsy.datamodel.AbstractContentNode.NO_DESCR;
+import org.sleuthkit.autopsy.datamodel.BaseChildFactory.NoSuchEventBusException;
 import org.sleuthkit.autopsy.directorytree.ExplorerNodeActionVisitor;
 import org.sleuthkit.autopsy.directorytree.NewWindowViewAction;
 import org.sleuthkit.autopsy.ingest.IngestManager;
@@ -37,12 +44,16 @@ import org.sleuthkit.datamodel.TskCoreException;
 import org.sleuthkit.datamodel.VirtualDirectory;
 import org.sleuthkit.datamodel.Volume;
 import org.sleuthkit.autopsy.directorytree.FileSystemDetailsAction;
+import org.sleuthkit.datamodel.Tag;
 
 /**
  * This class is used to represent the "Node" for the volume. Its child is the
  * root directory of a file system
  */
 public class VolumeNode extends AbstractContentNode<Volume> {
+
+    private static final Logger logger = Logger.getLogger(VolumeNode.class.getName());
+    private static final Set<IngestManager.IngestModuleEvent> INGEST_MODULE_EVENTS_OF_INTEREST = EnumSet.of(IngestManager.IngestModuleEvent.CONTENT_CHANGED);
 
     /**
      * Helper so that the display name and the name used in building the path
@@ -72,7 +83,7 @@ public class VolumeNode extends AbstractContentNode<Volume> {
 
         this.setIconBaseWithExtension("org/sleuthkit/autopsy/images/vol-icon.png"); //NON-NLS
         // Listen for ingest events so that we can detect new added files (e.g. carved)
-        IngestManager.getInstance().addIngestModuleEventListener(pcl);
+        IngestManager.getInstance().addIngestModuleEventListener(INGEST_MODULE_EVENTS_OF_INTEREST, pcl);
         // Listen for case events so that we can detect when case is closed
         Case.addEventTypeSubscriber(EnumSet.of(Case.Events.CURRENT_CASE), pcl);
     }
@@ -105,18 +116,23 @@ public class VolumeNode extends AbstractContentNode<Volume> {
                 if (parent != null) {
                     // Is this a new carved file?
                     if (parent.getName().equals(VirtualDirectory.NAME_CARVED)) {
-                        // Was this new carved file produced from this volume?
-                        if (parent.getParent().getId() == getContent().getId()) {
-                            Children children = getChildren();
-                            if (children != null) {
-                                ((ContentChildren) children).refreshChildren();
-                                children.getNodesCount();
+                        // Is this new carved file for this data source?
+                        if (newContent.getDataSource().getId() == getContent().getDataSource().getId()) {
+                            // Find the volume (if any) associated with the new content and
+                            // trigger a refresh if it matches the volume wrapped by this node.
+                            while ((parent = parent.getParent()) != null) {
+                                if (parent.getId() == getContent().getId()) {
+                                    BaseChildFactory.post(getName(), new BaseChildFactory.RefreshKeysEvent());
+                                    break;
+                                }
                             }
                         }
                     }
                 }
             } catch (TskCoreException ex) {
                 // Do nothing.
+            } catch (NoSuchEventBusException ex) {
+                logger.log(Level.WARNING, eventType, ex);
             }
         } else if (eventType.equals(Case.Events.CURRENT_CASE.toString())) {
             if (evt.getNewValue() == null) {
@@ -145,7 +161,7 @@ public class VolumeNode extends AbstractContentNode<Volume> {
                 NbBundle.getMessage(this.getClass(), "VolumeNode.getActions.viewInNewWin.text"), this));
         actionsList.addAll(ExplorerNodeActionVisitor.getActions(content));
 
-        return actionsList.toArray(new Action[0]);
+        return actionsList.toArray(new Action[actionsList.size()]);
     }
 
     @Override
@@ -203,5 +219,77 @@ public class VolumeNode extends AbstractContentNode<Volume> {
     @Override
     public String getItemType() {
         return DisplayableItemNode.FILE_PARENT_NODE_KEY;
+    }
+
+    /**
+     * Reads and returns a list of all tags associated with this content node.
+     *
+     * Null implementation of an abstract method.
+     *
+     * @return list of tags associated with the node.
+     */
+    @Override
+    protected List<Tag> getAllTagsFromDatabase() {
+        return new ArrayList<>();
+    }
+
+    /**
+     * Returns correlation attribute instance for the underlying content of the
+     * node.
+     *
+     * Null implementation of an abstract method.
+     *
+     * @return correlation attribute instance for the underlying content of the
+     *         node.
+     */
+    @Override
+    protected CorrelationAttributeInstance getCorrelationAttributeInstance() {
+        return null;
+    }
+
+    /**
+     * Returns Score property for the node.
+     *
+     * Null implementation of an abstract method.
+     *
+     * @param tags list of tags.
+     *
+     * @return Score property for the underlying content of the node.
+     */
+    @Override
+    protected Pair<DataResultViewerTable.Score, String> getScorePropertyAndDescription(List<Tag> tags) {
+        return Pair.of(DataResultViewerTable.Score.NO_SCORE, NO_DESCR);
+    }
+
+    /**
+     * Returns comment property for the node.
+     *
+     * Null implementation of an abstract method.
+     *
+     * @param tags      list of tags
+     * @param attribute correlation attribute instance
+     *
+     * @return Comment property for the underlying content of the node.
+     */
+    @Override
+    protected DataResultViewerTable.HasCommentStatus getCommentProperty(List<Tag> tags, CorrelationAttributeInstance attribute) {
+        return DataResultViewerTable.HasCommentStatus.NO_COMMENT;
+    }
+
+    /**
+     * Returns occurrences/count property for the node.
+     *
+     * Null implementation of an abstract method.
+     *
+     * @param attributeType      the type of the attribute to count
+     * @param attributeValue     the value of the attribute to coun
+     * @param defaultDescription a description to use when none is determined by
+     *                           the getCountPropertyAndDescription method
+     *
+     * @return count property for the underlying content of the node.
+     */
+    @Override
+    protected Pair<Long, String> getCountPropertyAndDescription(CorrelationAttributeInstance.Type attributeType, String attributeValue, String defaultDescription) {
+        return Pair.of(-1L, NO_DESCR);
     }
 }

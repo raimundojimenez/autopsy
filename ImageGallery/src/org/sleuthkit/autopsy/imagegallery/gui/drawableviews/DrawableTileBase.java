@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2013-2018 Basis Technology Corp.
+ * Copyright 2015-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,19 +47,18 @@ import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javax.swing.Action;
 import javax.swing.SwingUtilities;
-import org.controlsfx.control.action.ActionUtils;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 import org.openide.util.Utilities;
 import org.openide.util.actions.Presenter;
 import org.openide.windows.TopComponent;
-import org.openide.windows.WindowManager;
 import org.sleuthkit.autopsy.casemodule.Case;
 import org.sleuthkit.autopsy.casemodule.events.ContentTagAddedEvent;
 import org.sleuthkit.autopsy.casemodule.events.ContentTagDeletedEvent;
 import org.sleuthkit.autopsy.corecomponentinterfaces.ContextMenuActionsProvider;
 import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.datamodel.FileNode;
+import org.sleuthkit.autopsy.directorytree.ExternalViewerShortcutAction;
 import org.sleuthkit.autopsy.directorytree.ExtractAction;
 import org.sleuthkit.autopsy.directorytree.NewWindowViewAction;
 import org.sleuthkit.autopsy.imagegallery.FileIDSelectionModel;
@@ -202,7 +201,7 @@ public abstract class DrawableTileBase extends DrawableUIBase {
                 final MenuItem extractMenuItem = new MenuItem(Bundle.DrawableTileBase_menuItem_extractFiles());
                 extractMenuItem.setOnAction(actionEvent
                         -> SwingUtilities.invokeLater(() -> {
-                            TopComponent etc = WindowManager.getDefault().findTopComponent(ImageGalleryTopComponent.PREFERRED_ID);
+                            TopComponent etc = ImageGalleryTopComponent.getTopComponent();
                             ExtractAction.getInstance().actionPerformed(new java.awt.event.ActionEvent(etc, 0, null));
                         }));
                 menuItems.add(extractMenuItem);
@@ -214,11 +213,13 @@ public abstract class DrawableTileBase extends DrawableUIBase {
                                     .actionPerformed(null);
                         }));
                 menuItems.add(contentViewer);
-
-                OpenExternalViewerAction openExternalViewerAction = new OpenExternalViewerAction(file);
-                MenuItem externalViewer = ActionUtils.createMenuItem(openExternalViewerAction);
-                externalViewer.textProperty().unbind();
-                externalViewer.textProperty().bind(openExternalViewerAction.longTextProperty());
+                MenuItem externalViewer = new MenuItem("Open in External Viewer");
+                externalViewer.setOnAction(actionEvent
+                        -> SwingUtilities.invokeLater(() -> {
+                            ExternalViewerShortcutAction.getInstance()
+                                    .actionPerformed(null);
+                        }));
+                externalViewer.setAccelerator(OpenExternalViewerAction.EXTERNAL_VIEWER_SHORTCUT);
                 menuItems.add(externalViewer);
 
                 Collection<? extends ContextMenuActionsProvider> menuProviders = Lookup.getDefault().lookupAll(ContextMenuActionsProvider.class);
@@ -346,7 +347,7 @@ public abstract class DrawableTileBase extends DrawableUIBase {
             final TagName followUpTagName = getController().getTagsManager().getFollowUpTagName(); //NON-NLS
             final ContentTag addedTag = evt.getAddedTag();
             if (fileID == addedTag.getContent().getId()
-                && addedTag.getName().equals(followUpTagName)) {
+                    && addedTag.getName().equals(followUpTagName)) {
                 Platform.runLater(() -> {
                     followUpImageView.setImage(followUpIcon);
                     followUpToggle.setSelected(true);
@@ -362,7 +363,7 @@ public abstract class DrawableTileBase extends DrawableUIBase {
             final TagName followUpTagName = getController().getTagsManager().getFollowUpTagName(); //NON-NLS
             final ContentTagDeletedEvent.DeletedContentTagInfo deletedTagInfo = evt.getDeletedTagInfo();
             if (fileID == deletedTagInfo.getContentID()
-                && deletedTagInfo.getName().equals(followUpTagName)) {
+                    && deletedTagInfo.getName().equals(followUpTagName)) {
                 updateFollowUpIcon();
             }
         });

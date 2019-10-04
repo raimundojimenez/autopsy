@@ -18,8 +18,12 @@
  */
 package org.sleuthkit.autopsy.core;
 
+import com.sun.jna.platform.win32.Kernel32;
 import java.awt.Cursor;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -29,6 +33,9 @@ import java.util.logging.Handler;
 import java.util.logging.Level;
 import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.openide.modules.InstalledFileLocator;
 import org.openide.modules.ModuleInstall;
 import org.openide.util.NbBundle;
 import org.openide.windows.WindowManager;
@@ -39,6 +46,7 @@ import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.coreutils.MessageNotifyUtil;
 import org.sleuthkit.autopsy.coreutils.ModuleSettings;
 import org.sleuthkit.autopsy.coreutils.PlatformUtil;
+import org.sleuthkit.autopsy.modules.filetypeid.FileTypeDetector;
 
 /**
  * Wrapper over Installers in packages in Core module. This is the main
@@ -71,6 +79,8 @@ public class Installer extends ModuleInstall {
          */
         if (PlatformUtil.isWindowsOS()) {
             try {
+                addGstreamerPathsToEnv();
+
                 //Note: if shipping with a different CRT version, this will only print a warning
                 //and try to use linker mechanism to find the correct versions of libs.
                 //We should update this if we officially switch to a new version of CRT/compiler
@@ -217,6 +227,21 @@ public class Installer extends ModuleInstall {
         packageInstallers.add(org.sleuthkit.autopsy.ingest.Installer.getDefault());
         packageInstallers.add(org.sleuthkit.autopsy.centralrepository.eventlisteners.Installer.getDefault());
         packageInstallers.add(org.sleuthkit.autopsy.healthmonitor.Installer.getDefault());
+
+        /**
+         * This is a temporary workaround for the following bug in Tika that
+         * results in a null pointer exception when used from the Image Gallery.
+         * The current hypothesis is that the Image Gallery is cancelling the
+         * thumbnail task that Tika initialization is happening on. Once the
+         * Tika issue has been fixed we should no longer need this workaround.
+         *
+         * https://issues.apache.org/jira/browse/TIKA-2896
+         */
+        try {
+            FileTypeDetector fileTypeDetector = new FileTypeDetector();
+        } catch (FileTypeDetector.FileTypeDetectorInitException ex) {
+            logger.log(Level.SEVERE, "Failed to load file type detector.", ex);
+        }
     }
 
     /**
@@ -269,6 +294,47 @@ public class Installer extends ModuleInstall {
     }
 
     /**
+     * Add the Gstreamer bin and lib paths to the PATH environment variable so
+     * that the correct plugins and libraries are found when Gstreamer is
+     * initialized later.
+     */
+    private static void addGstreamerPathsToEnv() {
+        if (System.getProperty("jna.nosys") == null) {
+            System.setProperty("jna.nosys", "true");
+        }
+
+        Path gstreamerPath = InstalledFileLocator.getDefault().locate("gstreamer", Installer.class.getPackage().getName(), false).toPath();
+
+        if (gstreamerPath == null) {
+            logger.log(Level.SEVERE, "Failed to find GStreamer.");
+        } else {
+            String arch = "x86_64";
+            if (!PlatformUtil.is64BitJVM()) {
+                arch = "x86";
+            }
+
+            Path gstreamerBasePath = Paths.get(gstreamerPath.toString(), "1.0", arch);
+            Path gstreamerBinPath = Paths.get(gstreamerBasePath.toString(), "bin");
+            Path gstreamerLibPath = Paths.get(gstreamerBasePath.toString(), "lib", "gstreamer-1.0");
+
+            // Update the PATH environment variable to contain the GStreamer
+            // lib and bin paths.
+            Kernel32 k32 = Kernel32.INSTANCE;
+            String path = System.getenv("PATH");
+            if (StringUtils.isBlank(path)) {
+                k32.SetEnvironmentVariable("PATH", gstreamerLibPath.toString());
+            } else {
+                /*
+                 * Note that we *prepend* the paths so that the Gstreamer
+                 * binaries associated with the current release are found rather
+                 * than binaries associated with an earlier version of Autopsy.
+                 */
+                k32.SetEnvironmentVariable("PATH", gstreamerBinPath.toString() + File.pathSeparator + gstreamerLibPath.toString() + path);
+            }
+        }
+    }
+
+    /**
      * Make a folder in the config directory for object detection classifiers if one does not
      * exist.
      */
@@ -286,11 +352,33 @@ public class Installer extends ModuleInstall {
         pythonModulesDir.mkdir();
     }
 
+    /**
+     * Make a folder in the config directory for Ocr Language Packs if one does
+     * not exist.
+     */
+    private static void ensureOcrLanguagePacksFolderExists() {
+        File ocrLanguagePacksDir = new File(PlatformUtil.getOcrLanguagePacksPath());
+        boolean createDirectory = ocrLanguagePacksDir.mkdir();
+
+        //If the directory did not exist, copy the tessdata folder over so we 
+        //support english.
+        if (createDirectory) {
+            File tessdataDir = InstalledFileLocator.getDefault().locate(
+                    "Tesseract-OCR/tessdata", Installer.class.getPackage().getName(), false);
+            try {
+                FileUtils.copyDirectory(tessdataDir, ocrLanguagePacksDir);
+            } catch (IOException ex) {
+                logger.log(Level.SEVERE, "Copying over default language packs for Tesseract failed.", ex);
+            }
+        }
+    }
+
     @Override
     public void restored() {
         super.restored();
         ensurePythonModulesFolderExists();
         ensureClassifierFolderExists();
+        ensureOcrLanguagePacksFolderExists();
         initJavaFx();
         for (ModuleInstall mi : packageInstallers) {
             try {

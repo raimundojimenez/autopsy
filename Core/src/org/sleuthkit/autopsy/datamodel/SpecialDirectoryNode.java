@@ -19,14 +19,18 @@
 package org.sleuthkit.autopsy.datamodel;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import javax.swing.Action;
 import org.openide.util.NbBundle;
+import org.sleuthkit.autopsy.casemodule.datasourcesummary.ViewSummaryInformationAction;
 import org.sleuthkit.autopsy.coreutils.ContextMenuExtensionPoint;
+import org.sleuthkit.autopsy.directorytree.ExportCSVAction;
 import org.sleuthkit.autopsy.directorytree.ExtractAction;
 import org.sleuthkit.autopsy.directorytree.FileSearchAction;
 import org.sleuthkit.autopsy.directorytree.NewWindowViewAction;
 import org.sleuthkit.autopsy.ingest.runIngestModuleWizard.RunIngestModulesAction;
+import org.sleuthkit.datamodel.Content;
 import org.sleuthkit.datamodel.SpecialDirectory;
 
 /**
@@ -58,9 +62,15 @@ public abstract class SpecialDirectoryNode extends AbstractAbstractFileNode<Spec
                 Bundle.SpecialDirectoryNode_getActions_viewInNewWin_text(), this));
         actions.add(null); // creates a menu separator
         actions.add(ExtractAction.getInstance());
+        actions.add(ExportCSVAction.getInstance());
         actions.add(null); // creates a menu separator
         actions.add(new FileSearchAction(Bundle.ImageNode_getActions_openFileSearchByAttr_text()));
-        actions.add(new RunIngestModulesAction(content));
+        if (content.isDataSource()) {
+            actions.add(new ViewSummaryInformationAction(content.getId()));
+            actions.add(new RunIngestModulesAction(Collections.<Content>singletonList(content)));
+        } else {
+            actions.add(new RunIngestModulesAction(content));
+        }
         actions.addAll(ContextMenuExtensionPoint.getActions());
         return actions.toArray(new Action[0]);
     }

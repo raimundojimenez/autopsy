@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2011-2018 Basis Technology Corp.
+ * Copyright 2012-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,12 +40,14 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
 import javax.swing.tree.TreeSelectionModel;
 import org.apache.commons.lang3.StringUtils;
 import org.openide.explorer.ExplorerManager;
 import org.openide.explorer.ExplorerUtils;
 import org.openide.explorer.view.BeanTreeView;
-import org.openide.explorer.view.TreeView;
+import org.openide.explorer.view.Visualizer;
 import org.openide.nodes.AbstractNode;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
@@ -83,7 +85,6 @@ import org.sleuthkit.autopsy.datamodel.Tags;
 import org.sleuthkit.autopsy.datamodel.ViewsNode;
 import org.sleuthkit.autopsy.datamodel.accounts.Accounts;
 import org.sleuthkit.autopsy.datamodel.accounts.BINRange;
-import org.sleuthkit.autopsy.ingest.IngestManager;
 import org.sleuthkit.datamodel.Account;
 import org.sleuthkit.datamodel.BlackboardArtifact;
 import org.sleuthkit.datamodel.BlackboardAttribute;
@@ -124,6 +125,31 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
 
         // only allow one item to be selected at a time
         getTree().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        //Hook into the JTree and pre-expand the Views Node and Results node when a user
+        //expands an item in the tree that makes these nodes visible.
+        ((ExpansionBeanTreeView) getTree()).addTreeExpansionListener(new TreeExpansionListener() {
+            @Override
+            public void treeExpanded(TreeExpansionEvent event) {
+                //Bail immediately if we are not in the Group By view.
+                //Assumption here is that the views are already expanded.
+                if (!CasePreferences.getGroupItemsInTreeByDataSource()) {
+                    return;
+                }
+
+                Node expandedNode = Visualizer.findNode(event.getPath().getLastPathComponent());
+                for (Node child : em.getRootContext().getChildren().getNodes()) {
+                    if (child.equals(expandedNode)) {
+                        preExpandNodes(child.getChildren());
+                    }
+                }
+            }
+
+            @Override
+            public void treeCollapsed(TreeExpansionEvent event) {
+                //Do nothing
+            }
+
+        });
         // remove the close button
         putClientProperty(TopComponent.PROP_CLOSING_DISABLED, Boolean.TRUE);
         setName(NbBundle.getMessage(DirectoryTreeTopComponent.class, "CTL_DirectoryTreeTopComponent"));
@@ -137,7 +163,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
         this.forwardList = new LinkedList<>();
         backButton.setEnabled(false);
         forwardButton.setEnabled(false);
-        
+
         viewPreferencesPopupMenu.add(viewPreferencesPanel);
         viewPreferencesPopupMenu.setSize(viewPreferencesPanel.getPreferredSize().width + 6, viewPreferencesPanel.getPreferredSize().height + 6);
         viewPreferencesPopupMenu.addPopupMenuListener(new PopupMenuListener() {
@@ -159,6 +185,28 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
     }
 
     /**
+     * Pre-expands the Views node, the Results node, and all of the children of
+     * the Results node.
+     *
+     * @param rootChildren Children node containing Results node and Views node.
+     */
+    private void preExpandNodes(Children rootChildren) {
+        BeanTreeView tree = getTree();
+
+        Node results = rootChildren.findChild(ResultsNode.NAME);
+        if (!Objects.isNull(results)) {
+            tree.expandNode(results);
+            Children resultsChildren = results.getChildren();
+            Arrays.stream(resultsChildren.getNodes()).forEach(tree::expandNode);
+        }
+
+        Node views = rootChildren.findChild(ViewsNode.NAME);
+        if (!Objects.isNull(views)) {
+            tree.expandNode(views);
+        }
+    }
+
+    /**
      * Make this TopComponent a listener to various change events.
      */
     private void subscribeToChangeEvents() {
@@ -167,9 +215,11 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
             public void preferenceChange(PreferenceChangeEvent evt) {
                 switch (evt.getKey()) {
                     case UserPreferences.DISPLAY_TIMES_IN_LOCAL_TIME:
+                    case UserPreferences.TIME_ZONE_FOR_DISPLAYS:
                     case UserPreferences.HIDE_KNOWN_FILES_IN_DATA_SRCS_TREE:
                     case UserPreferences.HIDE_SLACK_FILES_IN_DATA_SRCS_TREE:
-                    case UserPreferences.HIDE_CENTRAL_REPO_COMMENTS_AND_OCCURRENCES:
+                    case UserPreferences.HIDE_SCO_COLUMNS:
+                    case UserPreferences.DISPLAY_TRANSLATED_NAMES:
                     case UserPreferences.KEEP_PREFERRED_VIEWER:
                         refreshContentTreeSafe();
                         break;
@@ -187,8 +237,6 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
 
         Case.addEventTypeSubscriber(EnumSet.of(Case.Events.CURRENT_CASE, Case.Events.DATA_SOURCE_ADDED), this);
         this.em.addPropertyChangeListener(this);
-        IngestManager.getInstance().addIngestJobEventListener(this);
-        IngestManager.getInstance().addIngestModuleEventListener(this);
     }
 
     public void setDirectoryListingActive() {
@@ -202,19 +250,19 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
     public DataResultTopComponent getDirectoryListing() {
         return this.dataResult;
     }
-    
+
     /**
      * Show rejected results?
-     * 
+     *
      * @return True if showing rejected results; otherwise false.
      */
     public boolean getShowRejectedResults() {
         return showRejectedResults;
     }
-    
+
     /**
      * Setter to determine if rejected results should be shown or not.
-     * 
+     *
      * @param showRejectedResults True if showing rejected results; otherwise
      *                            false.
      */
@@ -234,7 +282,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
     private void initComponents() {
 
         viewPreferencesPopupMenu = new javax.swing.JPopupMenu();
-        treeView = new BeanTreeView();
+        treeView = new ExpansionBeanTreeView();
         backButton = new javax.swing.JButton();
         forwardButton = new javax.swing.JButton();
         openViewPreferencesButton = new javax.swing.JButton();
@@ -534,22 +582,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
                 @Override
                 protected Node[] doInBackground() throws Exception {
                     Children rootChildren = em.getRootContext().getChildren();
-                    TreeView tree = getTree();
-
-                    Node results = rootChildren.findChild(ResultsNode.NAME);
-                    if (!Objects.isNull(results)) {
-                        tree.expandNode(results);
-                        Children resultsChildren = results.getChildren();
-                        Arrays.stream(resultsChildren.getNodes()).forEach(tree::expandNode);
-
-                        accounts = resultsChildren.findChild(Accounts.NAME).getLookup().lookup(Accounts.class);
-                    }
-
-                    Node views = rootChildren.findChild(ViewsNode.NAME);
-                    if (!Objects.isNull(views)) {
-                        Arrays.stream(views.getChildren().getNodes()).forEach(tree::expandNode);
-                        tree.collapseNode(views);
-                    }
+                    preExpandNodes(rootChildren);
                     /*
                      * JIRA-2806: What is this supposed to do? Right now it
                      * selects the data sources node, but the comment seems to
@@ -751,7 +784,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
                      * this elsewhere.
                      */
                     SwingUtilities.invokeLater(() -> {
-                        if (! DirectoryTreeTopComponent.this.isOpened()) {
+                        if (!DirectoryTreeTopComponent.this.isOpened()) {
                             CoreComponentControl.openCoreWindows();
                         }
                     });
@@ -763,10 +796,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
             } // change in node selection
             else if (changed.equals(ExplorerManager.PROP_SELECTED_NODES)) {
                 respondSelection((Node[]) event.getOldValue(), (Node[]) event.getNewValue());
-            } else if (changed.equals(IngestManager.IngestModuleEvent.DATA_ADDED.toString())) {
-                // nothing to do here.
-                // all nodes should be listening for these events and update accordingly.
-            }
+            } 
         }
     }
 
@@ -894,7 +924,7 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
      *
      * @return tree the BeanTreeView
      */
-    public BeanTreeView getTree() {
+    BeanTreeView getTree() {
         return (BeanTreeView) this.treeView;
     }
 
@@ -914,20 +944,20 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
             if (autopsyTreeChildren == null) {
                 return;
             }
-            
+
             if (Objects.equals(CasePreferences.getGroupItemsInTreeByDataSource(), true)) {
                 for (Node dataSource : autopsyTreeChildren.getNodes()) {
                     Node tagsNode = dataSource.getChildren().findChild(Tags.getTagsDisplayName());
                     if (tagsNode != null) {
                         //Reports is at the same level as the data sources so we want to ignore it
-                        ((Tags.RootNode)tagsNode).refresh();
+                        ((Tags.RootNode) tagsNode).refresh();
                     }
                 }
             } else {
-                 Node tagsNode = autopsyTreeChildren.findChild(Tags.getTagsDisplayName());
-                    if (tagsNode != null) {
-                        ((Tags.RootNode)tagsNode).refresh();
-                    }
+                Node tagsNode = autopsyTreeChildren.findChild(Tags.getTagsDisplayName());
+                if (tagsNode != null) {
+                    ((Tags.RootNode) tagsNode).refresh();
+                }
             }
         });
     }
@@ -968,29 +998,13 @@ public final class DirectoryTreeTopComponent extends TopComponent implements Dat
                 super.done();
                 try {
                     get();
-                    selectFirstChildNode();
                     resetHistory();
+                    preExpandNodes(em.getRootContext().getChildren());
                 } catch (InterruptedException | ExecutionException ex) {
                     LOGGER.log(Level.SEVERE, "Error selecting tree node.", ex); //NON-NLS
                 } //NON-NLS
             }
         }.execute();
-    }
-
-    /**
-     * Selects the first node in the tree.
-     *
-     */
-    private void selectFirstChildNode() {
-        Children rootChildren = em.getRootContext().getChildren();
-
-        if (rootChildren.getNodesCount() > 0) {
-            Node firstNode = rootChildren.getNodeAt(0);
-            if (firstNode != null) {
-                final String[] selectedPath = NodeOp.createPath(firstNode, em.getRootContext());
-                setSelectedNode(selectedPath, null);
-            }
-        }
     }
 
     /**

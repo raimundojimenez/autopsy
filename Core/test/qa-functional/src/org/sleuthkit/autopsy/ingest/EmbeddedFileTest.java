@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
 import junit.framework.Test;
@@ -31,6 +32,7 @@ import org.openide.util.Exceptions;
 import junit.framework.Assert;
 import org.sleuthkit.autopsy.casemodule.Case;
 import org.sleuthkit.autopsy.casemodule.ImageDSProcessor;
+import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.ingest.IngestJobSettings.IngestType;
 import org.sleuthkit.autopsy.modules.embeddedfileextractor.EmbeddedFileExtractorModuleFactory;
 import org.sleuthkit.autopsy.modules.hashdatabase.HashLookupModuleFactory;
@@ -52,8 +54,6 @@ public class EmbeddedFileTest extends NbTestCase {
     private static final int DEEP_FOLDER_COUNT = 25;
     private Case openCase;
 
-    private boolean testSucceeded;
-
     public static Test suite() {
         NbModuleSuite.Configuration conf = NbModuleSuite.createConfiguration(EmbeddedFileTest.class).
                 clusters(".*").
@@ -67,15 +67,8 @@ public class EmbeddedFileTest extends NbTestCase {
 
     @Override
     public void setUp() {
-        testSucceeded = false;
 
-        /*
-         * TODO (JIRA-4241): Revisit this when the Image Gallery tool cleans up
-         * its drawable database connection deterministically, instead of in a
-         * finalizer. As it is now, case deletion can fail due to an open
-         * drawable database file handles, and that makes the tests fail.
-         */
-        openCase = CaseUtils.createAsCurrentCase(CASE_NAME + "_" + System.currentTimeMillis());
+        openCase = CaseUtils.createAsCurrentCase(CASE_NAME);
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -97,11 +90,22 @@ public class EmbeddedFileTest extends NbTestCase {
 
     @Override
     public void tearDown() {
-        CaseUtils.closeCurrentCase(testSucceeded);
+        CaseUtils.closeCurrentCase();
     }
 
-    public void testEncryptionAndZipBomb() {
+    public void testAll() {
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "----------------------   Embedded File Tests ---------------------");
+        runTestEncryptionAndZipBomb();
+        runTestExtension();
+        runTestBigFolder();
+        runTestDeepFolder();
+        runTestEmbeddedFile();
+        runTestContent();
+    }
+    
+    private void runTestEncryptionAndZipBomb() {
         try {
+            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Starting");
             List<AbstractFile> results = openCase.getSleuthkitCase().findAllFilesWhere("name LIKE '%%'");
             final String zipBombSetName = "Possible Zip Bomb";
             final String protectedName1 = "password_protected.zip";
@@ -144,13 +148,12 @@ public class EmbeddedFileTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-
-        testSucceeded = true;
     }
 
-    public void testBigFolder() {
+    private void runTestBigFolder() {
         final int numOfFilesToTest = 1000;
         try {
+            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Starting");
             //Get all files under 'big folder' directory except '.' '..' 'slack' files
             List<AbstractFile> results = openCase.getSleuthkitCase().findAllFilesWhere("parent_path LIKE '%big folder/' and name != '.' and name != '..' and extension NOT LIKE '%slack'");
             assertEquals(numOfFilesToTest, results.size()); //There are 1000 files 
@@ -171,12 +174,11 @@ public class EmbeddedFileTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-
-        testSucceeded = true;
     }
 
-    public void testDeepFolder() {
+    private void runTestDeepFolder() {
         try {
+            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Starting");
             //Get all files under 'deep folder' directory except '.' '..'
             List<AbstractFile> results = openCase.getSleuthkitCase().findAllFilesWhere("parent_path LIKE '%deep folder/' and name != '.' and name != '..'");
             assertEquals(1, results.size());
@@ -194,12 +196,11 @@ public class EmbeddedFileTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-
-        testSucceeded = true;
     }
 
-    public void testEmbeddedFile() {
+    private void runTestEmbeddedFile() {
         try {
+            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Starting");
             //Query level3.txt under '/ZIP/embedded/level3.zip/'
             List<AbstractFile> results = openCase.getSleuthkitCase().findAllFilesWhere("name = 'level3.txt' and parent_path = '/ZIP/embedded/level3.zip/'");
             assertEquals(1, results.size());
@@ -220,13 +221,12 @@ public class EmbeddedFileTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-
-        testSucceeded = true;
     }
 
-    public void testContent() {
+    private void runTestContent() {
         final int numOfFilesToTest = 1029;
         try {
+            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Starting");
             //All files with txt extension should have the same hash value, 
             //except the zip file with txt extension and the .txt files extracted from password protected zip shouldn't have hash value
             List<AbstractFile> results = openCase.getSleuthkitCase().findAllFilesWhere(
@@ -246,12 +246,11 @@ public class EmbeddedFileTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-
-        testSucceeded = true;
     }
 
-    public void testExtension() {
+    private void runTestExtension() {
         try {
+            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Starting");
             //Query zipFileWithTxtExtension.txt at extension folder
             List<AbstractFile> results = openCase.getSleuthkitCase().findAllFilesWhere("extension = 'txt' and parent_path = '/ZIP/extension/zipFileWithTxtExtension.txt/'");
             assertEquals(1, results.size());
@@ -260,8 +259,6 @@ public class EmbeddedFileTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-
-        testSucceeded = true;
     }
 
     private void checkEachFileInDeepFolder(AbstractFile file, StringBuffer dirReached, ArrayList<String> fileReached, int numOfDir) {

@@ -38,7 +38,7 @@ Once a database has been configured, the lower two buttons on the main panel wil
 
 <b>Setting up PostgreSQL Deployment</b>
 
-If needed, see the \ref install_postgresql for help setting up your PostgreSQL server.
+If needed, see the \ref install_postgresql_page for help setting up your PostgreSQL server.
 
 For PostgreSQL all values are required, but some defaults are provided for convenience.
 
@@ -79,6 +79,16 @@ Descriptions of the property types:
  - Phone numbers are currently only extracted from call logs, contact lists and message, which come from the Android Analyzer module.
 - <b>USB Devices</b>
  - USB device properties come from the registry parsing in the Recent Activity Module.
+- <b>Wireless Networks</b>
+ - Wireless networks are correlated on SSIDs, and come from the registry parsing in the Recent Activity Module.
+- <b>MAC Addresses</b>
+ - MAC address properties are currently only created by custom Autopsy modules
+- <b>IMEI Number</b>
+ - IMEIs properties are currently only created by custom Autopsy modules
+- <b>IMSI Number</b>
+ - IMSI properties are currently only created by custom Autopsy modules
+- <b>ICCID Number</b>
+ - ICCID properties are currently only created by custom Autopsy modules
 
 \subsection cr_manage_orgs Manage Organizations
 
@@ -90,9 +100,9 @@ One default org, "Not Specified" will always be present in the list. New organiz
 
 \image html central_repo_new_org.png
 
-\subsection cr_show_cases Show Cases
+\subsection cr_show_cases Manage Cases
 
-Displays a list of all cases that are in the central repository database.
+Displays a list of all cases that are in the central repository database and details about each case.
 
 \image html central_repo_details.png
 
@@ -106,6 +116,15 @@ Engine. For example, if Hash Lookup is not run then the Correlation Engine modul
 database. If the Correlation Engine module is not run on a particular case but a central repository is enabled, 
 there will still be some limited functionality. The Content Viewer will still display matching properties from 
 other cases/data sources where the Correlation Engine was run.
+
+\image html central_repo_ingest_settings.png
+
+There are three settings for the Correlation Engine ingest module:
+<ul>
+<li><b>Save items to the Central Repository</b> - This should only be unselected in the rare case that you don't want to add any properties from the current data source to the central repository, but still want to flag past occurrences.
+<li><b>Flag items previously tagged as notable</b> - Enabling this causes Interesting Item/File artifacts to be created when properties matching those previously flagged are found. See the next section \ref cr_tagging for details.
+<li><b>Flag previously seen devices</b> - When this is enabled, an Interesting Item artifact will be created if any device-related property (USB, MAC Address, IMSI, IMEI, ICCID) is found that is already in the central repository, regardless of whether they have been flagged.
+</li>
 
 \subsection cr_tagging Tagging Files and Artifacts
 
@@ -124,7 +143,7 @@ If you would like to prevent the Interesting Items from being created in a parti
 through the run time ingest properties. Note that this only disables the Interesting Item results - all properties
 are still added to the central repository.
 
-\image html central_repo_disable_flagging.png
+\image html central_repo_ingest_settings.png
 
 \section cr_viewing_results Viewing Results
 
@@ -142,33 +161,23 @@ properties from the central repository. If the selected file or artifact is asso
 to one or more properties in the database, the associated properties will be displayed. Note: the Content 
 Viewer will display ALL associated properties available in the database. It ignores the user's enabled/disabled Correlation Properties.
 
-By default, the rows in the content viewer will have background colors to indicate if they are known to be of interest. Properties that are notable 
-will have a Red background, all others will have a White background.
+The other occurrences are grouped by case and then data source. Selecting one of the results brings up information on it in the right column. If a file or artifact was previously marked as notable, you will see "notable" in red next to "Known Status".
 
 \image html central_repo_content_viewer.png
 
 The user can click on any column heading to sort by the values in that column.
 
-If the user right-clicks on a row, a menu will be displayed.
+If the user selects an entry in the third column and then right-clicks, a menu will be displayed.
 This menu has several options.
--# Select All
--# Export Selected Rows to CSV
+-# Export All Other Occurrences to CSV
 -# Show Case Details
 -# Show Frequency
--# Add/Edit Comment
 
-<b>Select All</b>
+<b>Export All Other Occurrences to CSV</b>
 
-This option will select all rows in the Content Viewer table.
-
-<b>Export Selected Rows to CSV</b>
-
-This option will save ALL SELECTED rows in the Content Viewer table to a CSV file.
+This option will save every other occurrence in the Content Viewer table to a CSV file.
 By default, the CSV file is saved into the Export directory inside the currently open Autopsy case,
 but the user is free to select a different location.
-
-Note: if you want to copy/paste rows, it is usually possible to use CTRL+C to copy the
-selected rows and then CTRL+V to paste them into a file, but it will not be CSV formatted.
 
 <b>Show Case Details</b>
 
@@ -187,9 +196,9 @@ the Case -> Case Properties menu.
 
 This shows how common the selected file is. The value is the percentage of case/data source tuples that have the selected property.
 
-<b>Add/Edit Comment</b>
+\subsection central_repo_comment Add/Edit Comment
 
-This allows you to add a comment for this entry or edit an existing comment. If you want instead to edit the comment of the originally selected node, it can be done by right clicking on the original item in the result viewer and selecting "Add/Edit Central Repository Comment".
+If you want instead to edit the comment of a node, it can be done by right clicking on the original item in the result viewer and selecting "Add/Edit Central Repository Comment".
 
 \image html central_repo_comment_menu.png
 

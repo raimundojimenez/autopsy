@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Level;
 import org.netbeans.junit.NbModuleSuite;
 import org.sleuthkit.autopsy.casemodule.Case;
 import junit.framework.Test;
@@ -32,6 +33,7 @@ import junit.framework.Assert;
 import org.sleuthkit.autopsy.casemodule.ImageDSProcessor;
 import org.sleuthkit.autopsy.casemodule.LocalFilesDSProcessor;
 import org.sleuthkit.autopsy.casemodule.services.FileManager;
+import org.sleuthkit.autopsy.coreutils.Logger;
 import org.sleuthkit.autopsy.ingest.IngestJobSettings.IngestType;
 import org.sleuthkit.autopsy.modules.embeddedfileextractor.EmbeddedFileExtractorModuleFactory;
 import org.sleuthkit.autopsy.modules.filetypeid.FileTypeIdModuleFactory;
@@ -58,8 +60,6 @@ public class IngestFileFiltersTest extends NbTestCase {
     private final Path IMAGE_PATH = Paths.get(this.getDataDir().toString(),"IngestFilters_img1_v1.img");
     private final Path ZIPFILE_PATH = Paths.get(this.getDataDir().toString(), "IngestFilters_local1_v1.zip");
     
-    private boolean testSucceeded;
-    
     public static Test suite() {
         NbModuleSuite.Configuration conf = NbModuleSuite.createConfiguration(IngestFileFiltersTest.class).
                 clusters(".*").
@@ -72,17 +72,13 @@ public class IngestFileFiltersTest extends NbTestCase {
     }
     
     @Override
-    public void setUp() {
-        testSucceeded = false;
-    }
-
-    @Override
     public void tearDown() {
-        CaseUtils.closeCurrentCase(testSucceeded);
+        CaseUtils.closeCurrentCase();
     }
     
     public void testBasicDir() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testBasicDir");
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testBasicDir");
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -119,12 +115,11 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
     }
     
     public void testExtAndDirWithOneRule() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testExtAndDirWithOneRule");
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testExtAndDirWithOneRule");
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -155,12 +150,12 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
     }
 
     public void testExtAndDirWithTwoRules() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testExtAndDirWithTwoRules");
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testExtAndDirWithTwoRules");
+       
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -200,12 +195,11 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
    }
    
     public void testFullFileNameRule() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testFullFileNameRule");
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testFullFileNameRule");
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -236,12 +230,11 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
     }
 
     public void testCarvingWithExtRuleAndUnallocSpace() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testCarvingWithExtRuleAndUnallocSpace");
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testCarvingWithExtRuleAndUnallocSpace");
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -285,12 +278,11 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
     }
   
     public void testCarvingNoUnallocatedSpace() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testCarvingNoUnallocatedSpace");
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testCarvingNoUnallocatedSpace");
         ImageDSProcessor dataSourceProcessor = new ImageDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, IMAGE_PATH);
 
@@ -307,6 +299,7 @@ public class IngestFileFiltersTest extends NbTestCase {
             templates.add(IngestUtils.getIngestModuleTemplate(new PhotoRecCarverIngestModuleFactory()));
             IngestJobSettings ingestJobSettings = new IngestJobSettings(IngestFileFiltersTest.class.getCanonicalName(), IngestType.FILES_ONLY, templates, extensionFilter);
             try {
+                Logger.getLogger(this.getClass().getName()).log(Level.INFO, "*********************  NOTE: A PhotoRec exception is expected below for this test   ****************************");
                 List<IngestModuleError> errs = IngestJobRunner.runIngestJob(currentCase.getDataSources(), ingestJobSettings);
                 //Ingest fails because Carving wants unallocated space
                 assertEquals(1, errs.size());
@@ -319,12 +312,11 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
     }
 
-    public void testEmbeddedModule() {
-        Case currentCase = CaseUtils.createAsCurrentCase("testEmbeddedModule");
+    public void testEmbeddedJpg() {
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "---- Starting ----");
+        Case currentCase = CaseUtils.createAsCurrentCase("IngestFilter_testEmbeddedJpg");
         LocalFilesDSProcessor dataSourceProcessor = new LocalFilesDSProcessor();
         IngestUtils.addDataSource(dataSourceProcessor, ZIPFILE_PATH);
         
@@ -366,7 +358,5 @@ public class IngestFileFiltersTest extends NbTestCase {
             Exceptions.printStackTrace(ex);
             Assert.fail(ex.getMessage());
         }
-        
-        testSucceeded = true;
     }
 }

@@ -39,6 +39,7 @@ import org.sleuthkit.autopsy.casemodule.CasePreferences;
 import org.sleuthkit.autopsy.casemodule.NoCurrentCaseException;
 import org.sleuthkit.autopsy.core.UserPreferences;
 import org.sleuthkit.autopsy.coreutils.MessageNotifyUtil;
+import org.sleuthkit.autopsy.datamodel.AbstractAbstractFileNode;
 import org.sleuthkit.autopsy.datamodel.AbstractFsContentNode;
 import org.sleuthkit.autopsy.datamodel.BlackboardArtifactNode;
 import org.sleuthkit.autopsy.datamodel.ContentNodeSelectionInfo;
@@ -46,6 +47,7 @@ import org.sleuthkit.autopsy.datamodel.DataSourcesNode;
 import org.sleuthkit.autopsy.datamodel.DisplayableItemNode;
 import org.sleuthkit.autopsy.datamodel.RootContentChildren;
 import org.sleuthkit.datamodel.AbstractFile;
+import org.sleuthkit.datamodel.BlackboardArtifact;
 import org.sleuthkit.datamodel.Content;
 import org.sleuthkit.datamodel.ContentVisitor;
 import org.sleuthkit.datamodel.DataSource;
@@ -74,14 +76,15 @@ public class ViewContextAction extends AbstractAction {
      * parent of the content, selecting the parent in the tree view, then
      * selecting the content in the results view.
      *
-     * @param displayName  The display name for the action.
+     * @param displayName The display name for the action.
      * @param artifactNode The artifact node for the artifact.
      */
     public ViewContextAction(String displayName, BlackboardArtifactNode artifactNode) {
         super(displayName);
-        this.content = artifactNode.getLookup().lookup(AbstractFile.class);
-        if (this.content != null) {
+        this.content = artifactNode.getLookup().lookup(Content.class);
+        if (this.content != null && this.content instanceof AbstractFile) {
             AbstractFile file = (AbstractFile) content;
+            //disable the action if the content is a file and the file is hidden
             if ((TskData.FileKnown.KNOWN == file.getKnown() && UserPreferences.hideKnownFilesInDataSourcesTree())
                     || (TskData.TSK_DB_FILES_TYPE_ENUM.SLACK == file.getType() && UserPreferences.hideSlackFilesInDataSourcesTree())) {
                 this.setEnabled(false);
@@ -95,13 +98,28 @@ public class ViewContextAction extends AbstractAction {
      * parent of the content, selecting the parent in the tree view, then
      * selecting the content in the results view.
      *
-     * @param displayName           The display name for the action.
+     * @param displayName The display name for the action.
      * @param fileSystemContentNode The file system content node for the
-     *                              content.
+     * content.
      */
     public ViewContextAction(String displayName, AbstractFsContentNode<? extends AbstractFile> fileSystemContentNode) {
         super(displayName);
         this.content = fileSystemContentNode.getLookup().lookup(Content.class);
+    }
+
+    /**
+     * An action that displays the context for abstract file by expanding the
+     * data sources branch of the tree view to the level of the parent of the
+     * content, selecting the parent in the tree view, then selecting the
+     * content in the results view.
+     *
+     * @param displayName The display name for the action.
+     * @param abstractAbstractFileNode The AbstractAbstractFileNode node for the
+     * content.
+     */
+    public ViewContextAction(String displayName, AbstractAbstractFileNode<? extends AbstractFile> abstractAbstractFileNode) {
+        super(displayName);
+        this.content = abstractAbstractFileNode.getLookup().lookup(Content.class);
     }
 
     /**
@@ -111,7 +129,7 @@ public class ViewContextAction extends AbstractAction {
      * content in the results view.
      *
      * @param displayName The display name for the action.
-     * @param content     The content.
+     * @param content The content.
      */
     public ViewContextAction(String displayName, Content content) {
         super(displayName);
@@ -134,43 +152,6 @@ public class ViewContextAction extends AbstractAction {
     })
     public void actionPerformed(ActionEvent event) {
         EventQueue.invokeLater(() -> {
-            /*
-             * Get the "Data Sources" node from the tree view.
-             */
-            DirectoryTreeTopComponent treeViewTopComponent = DirectoryTreeTopComponent.findInstance();
-            ExplorerManager treeViewExplorerMgr = treeViewTopComponent.getExplorerManager();
-            Node parentTreeViewNode;
-            if (Objects.equals(CasePreferences.getGroupItemsInTreeByDataSource(), true)) { // 'Group by Data Source' view
-
-                SleuthkitCase skCase;
-                String dsname;
-                try {
-                    // get the objid/name of the datasource of the selected content.
-                    skCase = Case.getCurrentCaseThrows().getSleuthkitCase();
-                    long contentDSObjid = content.getDataSource().getId();
-                    DataSource datasource = skCase.getDataSource(contentDSObjid);
-                    dsname = datasource.getName();
-                    
-                    Children rootChildren = treeViewExplorerMgr.getRootContext().getChildren();
-                    Node datasourceGroupingNode = rootChildren.findChild(dsname);
-                    if (! Objects.isNull(datasourceGroupingNode) ) {
-                        Children dsChildren = datasourceGroupingNode.getChildren();
-                        parentTreeViewNode = dsChildren.findChild(DataSourcesNode.NAME);
-                    }
-                    else {
-                        MessageNotifyUtil.Message.error(Bundle.ViewContextAction_errorMessage_cannotFindNode());
-                        logger.log(Level.SEVERE, "Failed to locate data source node in tree."); //NON-NLS
-                        return;
-                    }
-                }  catch (NoCurrentCaseException | TskDataException | TskCoreException ex) {
-                    MessageNotifyUtil.Message.error(Bundle.ViewContextAction_errorMessage_cannotFindNode());
-                    logger.log(Level.SEVERE, "Failed to locate data source node in tree.", ex); //NON-NLS
-                    return;
-                }
-            } else {  // Classic view 
-                // Start the search at the DataSourcesNode
-                parentTreeViewNode = treeViewExplorerMgr.getRootContext().getChildren().findChild(DataSourcesNode.NAME);
-            }
 
             /*
              * Get the parent content for the content to be selected in the
@@ -187,47 +168,79 @@ public class ViewContextAction extends AbstractAction {
                 logger.log(Level.SEVERE, String.format("Could not get parent of Content object: %s", content), ex); //NON-NLS
                 return;
             }
-            if (null != parentContent) {
-                /*
-                 * Get an ordered list of the ancestors of the specified
-                 * content, starting with its data source.
-                 *
-                 */
-                AncestorVisitor ancestorVisitor = new AncestorVisitor();
-                List<Content> contentBranch = parentContent.accept(ancestorVisitor);
-                Collections.reverse(contentBranch);
 
-                /**
-                 * Convert the list of ancestors into a list of tree nodes.
-                 *
-                 * IMPORTANT: The "dummy" root node used to create this single
-                 * layer of children needs to be wrapped in a
-                 * DirectoryTreeFilterNode so that its child nodes will also be
-                 * wrapped in DirectoryTreeFilterNodes, via
-                 * DirectoryTreeFilterNodeChildren. Otherwise, the display names
-                 * of the nodes in the branch will not have child node counts
-                 * and will not match the display names of the corresponding
-                 * nodes in the actual tree view.
-                 */
-                Node dummyRootNode = new DirectoryTreeFilterNode(new AbstractNode(new RootContentChildren(contentBranch)), true);
-                Children ancestorChildren = dummyRootNode.getChildren();
+            /*
+             * Get the "Data Sources" node from the tree view.
+             */
+            DirectoryTreeTopComponent treeViewTopComponent = DirectoryTreeTopComponent.findInstance();
+            ExplorerManager treeViewExplorerMgr = treeViewTopComponent.getExplorerManager();
+            Node parentTreeViewNode = null;
+            if (Objects.equals(CasePreferences.getGroupItemsInTreeByDataSource(), true)) { // 'Group by Data Source' view
 
-                /*
-                 * Search the tree for the parent node. Note that this algorithm
-                 * simply discards "extra" ancestor nodes not shown in the tree,
-                 * such as the root directory of the file system for file system
-                 * content.
-                 */
-                Children treeNodeChildren = parentTreeViewNode.getChildren();
-                for (int i = 0; i < ancestorChildren.getNodesCount(); i++) {
-                    Node ancestorNode = ancestorChildren.getNodeAt(i);
-                    for (int j = 0; j < treeNodeChildren.getNodesCount(); j++) {
-                        Node treeNode = treeNodeChildren.getNodeAt(j);
-                        if (ancestorNode.getDisplayName().equals(treeNode.getDisplayName())) {
-                            parentTreeViewNode = treeNode;
-                            treeNodeChildren = treeNode.getChildren();
-                            break;
+                SleuthkitCase skCase;
+                String dsname;
+                try {
+                    // get the objid/name of the datasource of the selected content.
+                    skCase = Case.getCurrentCaseThrows().getSleuthkitCase();
+                    long contentDSObjid = content.getDataSource().getId();
+                    DataSource datasource = skCase.getDataSource(contentDSObjid);
+                    dsname = datasource.getName();
+                    Children rootChildren = treeViewExplorerMgr.getRootContext().getChildren();
+                    
+                    if (null != parentContent) {
+                        // the tree view needs to be searched to find the parent treeview node.
+                        /* NOTE: we can't do a lookup by data source name here, becase if there 
+                        are multiple data sources with the same name, then "getChildren().findChild(dsname)"
+                        simply returns the first one that it finds. Instead we have to loop over all
+                        data sources with that name, and make sure we find the correct one.
+                         */                        
+                        for (int i = 0; i < rootChildren.getNodesCount(); i++) {
+                            // in the root, look for a data source node with the name of interest
+                            Node treeNode = rootChildren.getNodeAt(i);
+                            if (!(treeNode.getName().equals(dsname))) {
+                                continue;
+                            }
+
+                            // for this data source, get the "Data Sources" child node
+                            Node datasourceGroupingNode = treeNode.getChildren().findChild(DataSourcesNode.NAME);
+
+                            // check whether this is the data source we are looking for
+                            parentTreeViewNode = findParentNodeInTree(parentContent, datasourceGroupingNode);
+                            if (parentTreeViewNode != null) {
+                                // found the data source node
+                                break;
+                            }
                         }
+                    } else {
+                        /* If the parent content is null, then the specified
+                        * content is a data source, and the parent tree view node is the
+                        * "Data Sources" node. */
+                        Node datasourceGroupingNode = rootChildren.findChild(dsname);
+                        if (!Objects.isNull(datasourceGroupingNode)) {
+                            Children dsChildren = datasourceGroupingNode.getChildren();
+                            parentTreeViewNode = dsChildren.findChild(DataSourcesNode.NAME);
+                        }
+                    }
+
+                    if (parentTreeViewNode == null) {
+                        MessageNotifyUtil.Message.error(Bundle.ViewContextAction_errorMessage_cannotFindNode());
+                        logger.log(Level.SEVERE, "Failed to locate data source node in tree."); //NON-NLS
+                        return;
+                    }
+                } catch (NoCurrentCaseException | TskDataException | TskCoreException ex) {
+                    MessageNotifyUtil.Message.error(Bundle.ViewContextAction_errorMessage_cannotFindNode());
+                    logger.log(Level.SEVERE, "Failed to locate data source node in tree.", ex); //NON-NLS
+                    return;
+                }
+            } else {  // Classic view 
+                // Start the search at the DataSourcesNode
+                parentTreeViewNode = treeViewExplorerMgr.getRootContext().getChildren().findChild(DataSourcesNode.NAME);
+
+                if (null != parentContent) {
+                    // the tree view needs to be searched to find the parent treeview node.
+                    Node potentialParentTreeViewNode = findParentNodeInTree(parentContent, parentTreeViewNode);
+                    if (potentialParentTreeViewNode != null) {
+                        parentTreeViewNode = potentialParentTreeViewNode;
                     }
                 }
             }
@@ -241,6 +254,17 @@ public class ViewContextAction extends AbstractAction {
              */
             DisplayableItemNode undecoratedParentNode = (DisplayableItemNode) ((DirectoryTreeFilterNode) parentTreeViewNode).getOriginal();
             undecoratedParentNode.setChildNodeSelectionInfo(new ContentNodeSelectionInfo(content));
+            if (content instanceof BlackboardArtifact) {
+                BlackboardArtifact artifact = ((BlackboardArtifact) content);
+                long associatedId = artifact.getObjectID();
+                try {
+                    Content associatedFileContent = artifact.getSleuthkitCase().getContentById(associatedId);
+                    undecoratedParentNode.setChildNodeSelectionInfo(new ContentNodeSelectionInfo(associatedFileContent));
+                } catch (TskCoreException ex) {
+                    logger.log(Level.SEVERE, "Could not find associated content from artifact with id %d", artifact.getId());
+                }
+            }
+
             TreeView treeView = treeViewTopComponent.getTree();
             treeView.expandNode(parentTreeViewNode);
             if (treeViewTopComponent.getSelectedNode().equals(parentTreeViewNode)) {
@@ -260,6 +284,60 @@ public class ViewContextAction extends AbstractAction {
                 }
             }
         });
+    }
+
+    /**
+     * Searches tree for parent node by getting an ordered list of the ancestors
+     * of the specified content.
+     *
+     * @param parentContent parent content for the content to be searched for
+     * @param node Node tree to search
+     * @return Node object of the matching parent, NULL if not found
+     */
+    private Node findParentNodeInTree(Content parentContent, Node node) {
+        /*
+         * Get an ordered list of the ancestors of the specified
+         * content, starting with its data source.
+         *
+         */
+        AncestorVisitor ancestorVisitor = new AncestorVisitor();
+        List<Content> contentBranch = parentContent.accept(ancestorVisitor);
+        Collections.reverse(contentBranch);
+
+        /**
+         * Convert the list of ancestors into a list of tree nodes.
+         *
+         * IMPORTANT: The "dummy" root node used to create this single layer of
+         * children needs to be wrapped in a DirectoryTreeFilterNode so that its
+         * child nodes will also be wrapped in DirectoryTreeFilterNodes, via
+         * DirectoryTreeFilterNodeChildren. Otherwise, the display names of the
+         * nodes in the branch will not have child node counts and will not
+         * match the display names of the corresponding nodes in the actual tree
+         * view.
+         */
+        Node dummyRootNode = new DirectoryTreeFilterNode(new AbstractNode(new RootContentChildren(contentBranch)), true);
+        Children ancestorChildren = dummyRootNode.getChildren();
+
+        /*
+        * Search the tree for the parent node. Note that this algorithm
+        * simply discards "extra" ancestor nodes not shown in the tree,
+        * such as the root directory of the file system for file system
+        * content.
+         */
+        Children treeNodeChildren = node.getChildren();
+        Node parentTreeViewNode = null;
+        for (int i = 0; i < ancestorChildren.getNodesCount(); i++) {
+            Node ancestorNode = ancestorChildren.getNodeAt(i);
+            for (int j = 0; j < treeNodeChildren.getNodesCount(); j++) {
+                Node treeNode = treeNodeChildren.getNodeAt(j);
+                if (ancestorNode.getName().equals(treeNode.getName())) {
+                    parentTreeViewNode = treeNode;
+                    treeNodeChildren = treeNode.getChildren();
+                    break;
+                }
+            }
+        }
+        return parentTreeViewNode;
     }
 
     /**

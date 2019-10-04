@@ -11,6 +11,7 @@ import sys
 import psycopg2
 import psycopg2.extras
 import socket
+import csv
 
 class TskDbDiff(object):
     """Compares two TSK/Autospy SQLite databases.
@@ -74,16 +75,16 @@ class TskDbDiff(object):
         """
 
         self._init_diff()
-
+        id_obj_path_table = -1
         # generate the gold database dumps if necessary     
         if self._generate_gold_dump:       
-            TskDbDiff._dump_output_db_nonbb(self.gold_db_file, self.gold_dump, self.isMultiUser, self.pgSettings)     
+            id_obj_path_table = TskDbDiff._dump_output_db_nonbb(self.gold_db_file, self.gold_dump, self.isMultiUser, self.pgSettings)     
         if self._generate_gold_bb_dump:        
-            TskDbDiff._dump_output_db_bb(self.gold_db_file, self.gold_bb_dump, self.isMultiUser, self.pgSettings)
+            TskDbDiff._dump_output_db_bb(self.gold_db_file, self.gold_bb_dump, self.isMultiUser, self.pgSettings, id_obj_path_table)
 
         # generate the output database dumps (both DB and BB)
-        TskDbDiff._dump_output_db_nonbb(self.output_db_file, self._dump, self.isMultiUser, self.pgSettings)
-        TskDbDiff._dump_output_db_bb(self.output_db_file, self._bb_dump, self.isMultiUser, self.pgSettings)
+        id_obj_path_table = TskDbDiff._dump_output_db_nonbb(self.output_db_file, self._dump, self.isMultiUser, self.pgSettings)
+        TskDbDiff._dump_output_db_bb(self.output_db_file, self._bb_dump, self.isMultiUser, self.pgSettings, id_obj_path_table)
 
         # Compare non-BB
         dump_diff_pass = self._diff(self._dump, self.gold_dump, self._dump_diff)
@@ -172,7 +173,7 @@ class TskDbDiff(object):
         return False
 
 
-    def _dump_output_db_bb(db_file, bb_dump_file, isMultiUser, pgSettings):
+    def _dump_output_db_bb(db_file, bb_dump_file, isMultiUser, pgSettings, id_obj_path_table):
         """Dumps sorted text results to the given output location.
 
         Smart method that deals with a blackboard comparison to avoid issues
@@ -224,9 +225,9 @@ class TskDbDiff(object):
                   
                     # Get attributes for this artifact
                     if isMultiUser:
-                        attribute_cursor.execute("SELECT blackboard_attributes.source, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double FROM blackboard_attributes INNER JOIN blackboard_attribute_types ON blackboard_attributes.attribute_type_id = blackboard_attribute_types.attribute_type_id WHERE artifact_id = %s ORDER BY blackboard_attributes.source, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double", [art_id])
+                        attribute_cursor.execute("SELECT blackboard_attributes.source, blackboard_attributes.attribute_type_id, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double FROM blackboard_attributes INNER JOIN blackboard_attribute_types ON blackboard_attributes.attribute_type_id = blackboard_attribute_types.attribute_type_id WHERE artifact_id = %s ORDER BY blackboard_attributes.source, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double", [art_id])
                     else:
-                        attribute_cursor.execute("SELECT blackboard_attributes.source, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double FROM blackboard_attributes INNER JOIN blackboard_attribute_types ON blackboard_attributes.attribute_type_id = blackboard_attribute_types.attribute_type_id WHERE artifact_id =? ORDER BY blackboard_attributes.source, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double", [art_id])
+                        attribute_cursor.execute("SELECT blackboard_attributes.source, blackboard_attributes.attribute_type_id, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double FROM blackboard_attributes INNER JOIN blackboard_attribute_types ON blackboard_attributes.attribute_type_id = blackboard_attribute_types.attribute_type_id WHERE artifact_id =? ORDER BY blackboard_attributes.source, blackboard_attribute_types.display_name, blackboard_attributes.value_type, blackboard_attributes.value_text, blackboard_attributes.value_int32, blackboard_attributes.value_int64, blackboard_attributes.value_double", [art_id])
                     
                     attributes = attribute_cursor.fetchall()
                 
@@ -255,7 +256,9 @@ class TskDbDiff(object):
                             elif attr["value_type"] == 1:
                                 attr_value_as_string = str(attr["value_int32"])                        
                             elif attr["value_type"] == 2:
-                                attr_value_as_string = str(attr["value_int64"])                        
+                                attr_value_as_string = str(attr["value_int64"])
+                                if attr["attribute_type_id"]  == 36 and id_obj_path_table != -1 and int(attr_value_as_string) > 0: #normalize positive TSK_PATH_IDs from being object id to a path if the obj_id_path_table was generated
+                                    attr_value_as_string = id_obj_path_table[int(attr_value_as_string)]
                             elif attr["value_type"] == 3:
                                 attr_value_as_string = "%20.10f" % float((attr["value_double"])) #use exact format from db schema to avoid python auto format double value to (0E-10) scientific style                       
                             elif attr["value_type"] == 4:
@@ -319,8 +322,10 @@ class TskDbDiff(object):
         id_fs_info_table = build_id_fs_info_table(conn.cursor(), isMultiUser)
         id_objects_table = build_id_objects_table(conn.cursor(), isMultiUser)
         id_artifact_types_table = build_id_artifact_types_table(conn.cursor(), isMultiUser)
+        id_legacy_artifact_types = build_id_legacy_artifact_types_table(conn.cursor(), isMultiUser)
         id_reports_table = build_id_reports_table(conn.cursor(), isMultiUser)
-        id_obj_path_table = build_id_obj_path_table(id_files_table, id_objects_table, id_artifact_types_table, id_reports_table)
+        id_images_table = build_id_image_names_table(conn.cursor(), isMultiUser)
+        id_obj_path_table = build_id_obj_path_table(id_files_table, id_objects_table, id_artifact_types_table, id_reports_table, id_images_table)
 
         if isMultiUser: # Use PostgreSQL
             os.environ['PGPASSWORD']=pgSettings.password
@@ -333,14 +338,17 @@ class TskDbDiff(object):
                 for line in postgreSQL_db:
                     line = line.strip('\r\n ')
                     # Deal with pg_dump result file
-                    if line.startswith('--') or line.lower().startswith('alter') or not line: # It's comment or alter statement or empty line
+                    if (line.startswith('--') or line.lower().startswith('alter') or "pg_catalog" in line or "idle_in_transaction_session_timeout" in line or not line): # It's comment or alter statement or catalog entry or set idle entry or empty line
                         continue
                     elif not line.endswith(';'): # Statement not finished
                         dump_line += line
                         continue
                     else:
                         dump_line += line
-                    dump_line = normalize_db_entry(dump_line, id_obj_path_table, id_vs_parts_table, id_vs_info_table, id_fs_info_table, id_objects_table, id_reports_table) 
+                    if 'INSERT INTO image_gallery_groups_seen' in dump_line:
+                        dump_line = ''
+                        continue;
+                    dump_line = normalize_db_entry(dump_line, id_obj_path_table, id_vs_parts_table, id_vs_info_table, id_fs_info_table, id_objects_table, id_reports_table, id_images_table, id_legacy_artifact_types)
                     db_log.write('%s\n' % dump_line)
                     dump_line = ''
             postgreSQL_db.close()
@@ -352,7 +360,9 @@ class TskDbDiff(object):
             # Write to the database dump
             with codecs.open(dump_file, "wb", "utf_8") as db_log:
                 for line in conn.iterdump():
-                    line = normalize_db_entry(line, id_obj_path_table, id_vs_parts_table, id_vs_info_table, id_fs_info_table, id_objects_table, id_reports_table)
+                    if 'INSERT INTO "image_gallery_groups_seen"' in line:
+                        continue
+                    line = normalize_db_entry(line, id_obj_path_table, id_vs_parts_table, id_vs_info_table, id_fs_info_table, id_objects_table, id_reports_table, id_images_table, id_legacy_artifact_types)
                     db_log.write('%s\n' % line)
         # Now sort the file  
         srtcmdlst = ["sort", dump_file, "-o", dump_file]
@@ -362,6 +372,7 @@ class TskDbDiff(object):
         # cleanup the backup
         if backup_db_file:
             os.remove(backup_db_file)
+        return id_obj_path_table
 
 
     def dump_output_db(db_file, dump_file, bb_dump_file, isMultiUser, pgSettings):
@@ -372,8 +383,8 @@ class TskDbDiff(object):
             dump_file: a pathto_File, the location to dump the non-blackboard database items
             bb_dump_file: a pathto_File, the location to dump the blackboard database items
         """
-        TskDbDiff._dump_output_db_nonbb(db_file, dump_file, isMultiUser, pgSettings)
-        TskDbDiff._dump_output_db_bb(db_file, bb_dump_file, isMultiUser, pgSettings)
+        id_obj_path_table = TskDbDiff._dump_output_db_nonbb(db_file, dump_file, isMultiUser, pgSettings)
+        TskDbDiff._dump_output_db_bb(db_file, bb_dump_file, isMultiUser, pgSettings, id_obj_path_table)
 
 
     def _get_tmp_file(base, ext):
@@ -404,7 +415,7 @@ class PGSettings(object):
         return self.password
 
 
-def normalize_db_entry(line, files_table, vs_parts_table, vs_info_table, fs_info_table, objects_table, reports_table):
+def normalize_db_entry(line, files_table, vs_parts_table, vs_info_table, fs_info_table, objects_table, reports_table, images_table, artifact_table):
     """ Make testing more consistent and reasonable by doctoring certain db entries.
 
     Args:
@@ -419,14 +430,48 @@ def normalize_db_entry(line, files_table, vs_parts_table, vs_info_table, fs_info
     report_index = line.find('INSERT INTO "reports"') > -1 or line.find('INSERT INTO reports ') > -1
     layout_index = line.find('INSERT INTO "tsk_file_layout"') > -1 or line.find('INSERT INTO tsk_file_layout ') > -1
     data_source_info_index = line.find('INSERT INTO "data_source_info"') > -1 or line.find('INSERT INTO data_source_info ') > -1
+    event_description_index = line.find('INSERT INTO "tsk_event_descriptions"') > -1 or line.find('INSERT INTO tsk_event_descriptions ') > -1
+    events_index = line.find('INSERT INTO "tsk_events"') > -1 or line.find('INSERT INTO tsk_events ') > -1
     ingest_job_index = line.find('INSERT INTO "ingest_jobs"') > -1 or line.find('INSERT INTO ingest_jobs ') > -1
-    parens = line[line.find('(') + 1 : line.rfind(')')]
-    fields_list = parens.replace(" ", "").split(',')
+    examiners_index = line.find('INSERT INTO "tsk_examiners"') > -1 or line.find('INSERT INTO tsk_examiners ') > -1
+    ig_groups_index = line.find('INSERT INTO "image_gallery_groups"') > -1 or line.find('INSERT INTO image_gallery_groups ') > -1
+    ig_groups_seen_index = line.find('INSERT INTO "image_gallery_groups_seen"') > -1 or line.find('INSERT INTO image_gallery_groups_seen ') > -1
     
+    parens = line[line.find('(') + 1 : line.rfind(')')]
+    no_space_parens = parens.replace(" ", "")
+    fields_list = list(csv.reader([no_space_parens], quotechar="'"))[0]
+    #Add back in the quotechar for values that were originally wrapped (csv reader consumes this character)
+    fields_list_with_quotes = []
+    ptr = 0
+    for field in fields_list:
+        if(len(field) == 0):
+            field = "'" + field + "'"
+        else:
+            start = no_space_parens.find(field, ptr)
+            if((start - 1) >= 0 and no_space_parens[start - 1] == '\''):
+                if((start + len(field)) < len(no_space_parens) and no_space_parens[start + len(field)] == '\''):
+                    field = "'" + field + "'"
+        fields_list_with_quotes.append(field)
+        if(ptr > 0):
+            #Add one for each comma that is used to separate values in the original string
+            ptr+=1
+        ptr += len(field)
+
+    fields_list = fields_list_with_quotes
+
     # remove object ID
     if files_index:
         newLine = ('INSERT INTO "tsk_files" VALUES(' + ', '.join(fields_list[1:]) + ');') 
         return newLine
+    # remove group ID
+    elif ig_groups_index:
+        newLine = ('INSERT INTO "image_gallery_groups" VALUES(' + ', '.join(fields_list[1:]) + ');') 
+        return newLine
+    #remove id field
+    elif ig_groups_seen_index:
+        # Only removing the id and group_id fields for now. May need to care about examiner_id and seen fields in future.
+        newLine = ('INSERT INTO "image_gallery_groups_seen" VALUES(' + ', '.join(fields_list[2:]) + ');') 
+        return newLine    
     # remove object ID
     elif path_index:
         obj_id = int(fields_list[0])
@@ -500,6 +545,8 @@ def normalize_db_entry(line, files_table, vs_parts_table, vs_info_table, fs_info
             parent_path = vs_info_table[parent_id]
         elif parent_id in fs_info_table.keys():
             parent_path = fs_info_table[parent_id]
+        elif parent_id in images_table.keys():
+            parent_path = images_table[parent_id]
         elif parent_id == 'NULL':
             parent_path = "NULL"
         
@@ -531,6 +578,30 @@ def normalize_db_entry(line, files_table, vs_parts_table, vs_info_table, fs_info
             fields_list[3] = "0"
             fields_list[4] = "0"
         newLine = ('INSERT INTO "ingest_jobs" VALUES(' + ','.join(fields_list) + ');')
+        return newLine
+    elif examiners_index:
+        fields_list[1] = "{examiner_name}"
+        newLine = ('INSERT INTO "tsk_examiners" VALUES(' + ','.join(fields_list) + ');')
+        return newLine
+    # remove all timing dependent columns from events table
+    elif events_index:
+        newLine = ('INSERT INTO "tsk_events" VALUES(' + ','.join(fields_list[1:2]) + ');') 
+        return newLine
+    # remove object ids from event description table
+    elif event_description_index:
+        # replace object ids with information that is deterministic 
+        file_obj_id = int(fields_list[5])
+        object_id = int(fields_list[4])
+        legacy_artifact_id = 'NULL'
+        if (fields_list[6] != 'NULL'):
+            legacy_artifact_id = int(fields_list[6])
+        if file_obj_id != 'NULL' and file_obj_id in files_table.keys():
+            fields_list[5] = files_table[file_obj_id]
+        if object_id != 'NULL' and object_id in files_table.keys():
+            fields_list[4] = files_table[object_id]
+        if legacy_artifact_id != 'NULL' and legacy_artifact_id in artifact_table.keys():
+            fields_list[6] = artifact_table[legacy_artifact_id]
+        newLine = ('INSERT INTO "tsk_event_descriptions" VALUES(' + ','.join(fields_list[1:]) + ');') # remove report_id
         return newLine
     else:
         return line
@@ -601,6 +672,18 @@ def build_id_objects_table(db_cursor, isPostgreSQL):
     mapping = dict([(row[0], [row[1], row[2]]) for row in sql_select_execute(db_cursor, isPostgreSQL, "SELECT * FROM tsk_objects")])
     return mapping
 
+def build_id_image_names_table(db_cursor, isPostgreSQL):
+    """Build the map of object ids to name.
+
+    Args:
+        db_cursor: the database cursor
+    """
+    # for each row in the db, take the object id and name then create a tuple in the dictionary
+    # with the object id as the key and name, type as the value
+    mapping = dict([(row[0], row[1]) for row in sql_select_execute(db_cursor, isPostgreSQL, "SELECT obj_id, name FROM tsk_image_names WHERE sequence=0")])
+    #data_sources which are logical file sets will be found in the files table
+    return mapping
+
 def build_id_artifact_types_table(db_cursor, isPostgreSQL):
     """Build the map of object ids to artifact ids.
 
@@ -610,6 +693,17 @@ def build_id_artifact_types_table(db_cursor, isPostgreSQL):
     # for each row in the db, take the object id, par_obj_id, then create a tuple in the dictionary
     # with the object id as the key and artifact type as the value
     mapping = dict([(row[0], row[1]) for row in sql_select_execute(db_cursor, isPostgreSQL, "SELECT blackboard_artifacts.artifact_obj_id, blackboard_artifact_types.type_name FROM blackboard_artifacts INNER JOIN blackboard_artifact_types ON blackboard_artifact_types.artifact_type_id = blackboard_artifacts.artifact_type_id ")])
+    return mapping
+
+def build_id_legacy_artifact_types_table(db_cursor, isPostgreSQL):
+    """Build the map of legacy artifact ids to artifact type.
+
+    Args:
+        db_cursor: the database cursor
+    """
+    # for each row in the db, take the legacy artifact id then create a tuple in the dictionary
+    # with the artifact id as the key and artifact type as the value
+    mapping = dict([(row[0], row[1]) for row in sql_select_execute(db_cursor, isPostgreSQL, "SELECT blackboard_artifacts.artifact_id, blackboard_artifact_types.type_name FROM blackboard_artifacts INNER JOIN blackboard_artifact_types ON blackboard_artifact_types.artifact_type_id = blackboard_artifacts.artifact_type_id ")])
     return mapping
 
 def build_id_reports_table(db_cursor, isPostgreSQL):
@@ -623,7 +717,7 @@ def build_id_reports_table(db_cursor, isPostgreSQL):
     return mapping
 
 
-def build_id_obj_path_table(files_table, objects_table, artifacts_table, reports_table):
+def build_id_obj_path_table(files_table, objects_table, artifacts_table, reports_table, images_table):
     """Build the map of object ids to artifact ids.
 
     Args:
@@ -635,6 +729,7 @@ def build_id_obj_path_table(files_table, objects_table, artifacts_table, reports
     # make a copy of files_table and update it with new data from artifacts_table and reports_table
     mapping = files_table.copy()
     for k, v in objects_table.items():
+        path = ""
         if k not in mapping.keys(): # If the mapping table doesn't have data for obj_id
             if k in reports_table.keys(): # For a report we use the report path
                 par_obj_id = v[0]
@@ -646,6 +741,8 @@ def build_id_obj_path_table(files_table, objects_table, artifacts_table, reports
                     path = mapping[par_obj_id]
                 elif par_obj_id in reports_table.keys():
                     path = reports_table[par_obj_id]
+                elif par_obj_id in images_table.keys():
+                    path = images_table[par_obj_id]
                 mapping[k] = path + "/" + artifacts_table[k]
         elif v[0] not in mapping.keys():
             if v[0] in artifacts_table.keys():

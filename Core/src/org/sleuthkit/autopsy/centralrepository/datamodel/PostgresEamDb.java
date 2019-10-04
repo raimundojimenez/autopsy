@@ -19,18 +19,19 @@
 package org.sleuthkit.autopsy.centralrepository.datamodel;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.apache.commons.dbcp2.BasicDataSource;
+import org.openide.util.NbBundle.Messages;
 import org.sleuthkit.autopsy.coordinationservice.CoordinationService;
 import org.sleuthkit.autopsy.core.UserPreferences;
 import org.sleuthkit.autopsy.coreutils.Logger;
 
 /**
- * Central Repository database implementation using Postgres as a
- * backend
+ * Central Repository database implementation using Postgres as a backend
  */
 final class PostgresEamDb extends AbstractSqlEamDb {
 
@@ -47,10 +48,11 @@ final class PostgresEamDb extends AbstractSqlEamDb {
 
     /**
      * Get the singleton instance of PostgresEamDb
-     * 
+     *
      * @return the singleton instance of PostgresEamDb
-     * 
-     * @throws EamDbException if one or more default correlation type(s) have an invalid db table name.
+     *
+     * @throws EamDbException if one or more default correlation type(s) have an
+     *                        invalid db table name.
      */
     public synchronized static PostgresEamDb getInstance() throws EamDbException {
         if (instance == null) {
@@ -61,9 +63,10 @@ final class PostgresEamDb extends AbstractSqlEamDb {
     }
 
     /**
-     * 
-     * @throws EamDbException if the AbstractSqlEamDb class has one or more default
-     *      correlation type(s) having an invalid db table name.
+     *
+     * @throws EamDbException if the AbstractSqlEamDb class has one or more
+     *                        default correlation type(s) having an invalid db
+     *                        table name.
      */
     private PostgresEamDb() throws EamDbException {
         dbSettings = new PostgresEamDbSettings();
@@ -73,8 +76,8 @@ final class PostgresEamDb extends AbstractSqlEamDb {
     @Override
     public void shutdownConnections() throws EamDbException {
         try {
-            synchronized(this) {
-                if(connectionPool != null){
+            synchronized (this) {
+                if (connectionPool != null) {
                     connectionPool.close();
                     connectionPool = null; // force it to be re-created on next connect()
                 }
@@ -148,7 +151,7 @@ final class PostgresEamDb extends AbstractSqlEamDb {
         connectionURL.append(dbSettings.getPort());
         connectionURL.append("/");
         connectionURL.append(dbSettings.getDbName());
-        
+
         connectionPool.setUrl(connectionURL.toString());
         connectionPool.setUsername(dbSettings.getUserName());
         connectionPool.setPassword(dbSettings.getPassword());
@@ -162,26 +165,42 @@ final class PostgresEamDb extends AbstractSqlEamDb {
     /**
      * Lazily setup Singleton connection on first request.
      *
+     * @param foreignKeys -ignored arguement with postgres databases
+     *
      * @return A connection from the connection pool.
      *
      * @throws EamDbException
      */
     @Override
+    protected Connection connect(boolean foreignKeys) throws EamDbException {
+        //foreignKeys boolean is ignored for postgres
+        return connect();
+    }
+
+    /**
+     * Lazily setup Singleton connection on first request.
+     *
+     * @return A connection from the connection pool.
+     *
+     * @throws EamDbException
+     */
+    @Messages({"PostgresEamDb.centralRepoDisabled.message=Central Repository module is not enabled.",
+        "PostgresEamDb.connectionFailed.message=Error getting connection to database."})
+    @Override
     protected Connection connect() throws EamDbException {
         synchronized (this) {
             if (!EamDb.isEnabled()) {
-                throw new EamDbException("Central Repository module is not enabled"); // NON-NLS
+                throw new EamDbException(Bundle.PostgresEamDb_centralRepoDisabled_message()); // NON-NLS
             }
 
             if (connectionPool == null) {
                 setupConnectionPool();
             }
         }
-
         try {
             return connectionPool.getConnection();
         } catch (SQLException ex) {
-            throw new EamDbException("Error getting connection from connection pool.", ex); // NON-NLS
+            throw new EamDbException(Bundle.PostgresEamDb_connectionFailed_message(), ex); // NON-NLS
         }
     }
 
@@ -189,36 +208,58 @@ final class PostgresEamDb extends AbstractSqlEamDb {
     protected String getConflictClause() {
         return CONFLICT_CLAUSE;
     }
-    
+
     /**
-     * Gets an exclusive lock (if applicable).
-     * Will return the lock if successful, null if unsuccessful because locking
-     * isn't supported, and throw an exception if we should have been able to get the
-     * lock but failed (meaning the database is in use).
+     * Gets an exclusive lock (if applicable). Will return the lock if
+     * successful, null if unsuccessful because locking isn't supported, and
+     * throw an exception if we should have been able to get the lock but failed
+     * (meaning the database is in use).
+     *
      * @return the lock, or null if locking is not supported
-     * @throws EamDbException if the coordination service is running but we fail to get the lock
+     *
+     * @throws EamDbException if the coordination service is running but we fail
+     *                        to get the lock
      */
     @Override
-    public CoordinationService.Lock getExclusiveMultiUserDbLock() throws EamDbException{
+    public CoordinationService.Lock getExclusiveMultiUserDbLock() throws EamDbException {
         try {
             // First check if multi user mode is enabled - if not there's no point trying to get a lock
-            if( ! UserPreferences.getIsMultiUserModeEnabled()){
+            if (!UserPreferences.getIsMultiUserModeEnabled()) {
                 return null;
             }
-            
+
             String databaseNodeName = dbSettings.getHost() + "_" + dbSettings.getDbName();
             CoordinationService.Lock lock = CoordinationService.getInstance().tryGetExclusiveLock(CoordinationService.CategoryNode.CENTRAL_REPO, databaseNodeName, 5, TimeUnit.MINUTES);
 
-            if(lock != null){
+            if (lock != null) {
                 return lock;
             }
             throw new EamDbException("Error acquiring database lock");
-        } catch (InterruptedException ex){
+        } catch (InterruptedException ex) {
             throw new EamDbException("Error acquiring database lock");
         } catch (CoordinationService.CoordinationServiceException ex) {
             // This likely just means the coordination service isn't running, which is ok
             return null;
         }
+    }
+
+    @Override
+    boolean doesColumnExist(Connection conn, String tableName, String columnName) throws SQLException {
+        final String objectIdColumnExistsTemplate = "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='%s' AND column_name='%s')";  //NON-NLS
+        ResultSet resultSet = null;
+        Statement statement = null;
+        boolean columnExists = false;
+        try {
+            statement = conn.createStatement();
+            resultSet = statement.executeQuery(String.format(objectIdColumnExistsTemplate, tableName, columnName));
+            if (resultSet.next()) {
+                columnExists = resultSet.getBoolean(1);
+            }
+        } finally {
+            EamDbUtil.closeResultSet(resultSet);
+            EamDbUtil.closeStatement(statement);
+        }
+        return columnExists;
     }
 
 }

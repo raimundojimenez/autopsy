@@ -8,6 +8,7 @@ Autopsy supports four types of data sources:
 - Local Disk: Local storage device (local drive, USB-attached drive, etc.).  (see \ref ds_local)
 - Logical Files: Local files or folders. (see \ref ds_log)
 - Unallocated Space Image Files: Any type of file that does not contain a file system but you want to run through ingest (see \ref ds_unalloc)
+- Autopsy Logical Imager Results: The results from running the logical imager. (see \ref ds_logical_imager)
 
 \section ds_add Adding a Data Source
 
@@ -54,11 +55,13 @@ Autopsy supports disk images in the following formats:
 
 To add a disk image:
 
--# Choose "Disk Image or VM File" from the data source types.
--# Browse to the first file in the disk image. You need to specify only the first file and Autopsy will find the rest.  
--# Choose the timezone that the disk image came from.  This is most important for when adding FAT file systems because it does not store timezone information and Autopsy will not know how to normalize to UTC.
--# Choose to perform orphan file finding on FAT file systems.  This can be a time intensive process because it will require that Autopsy look at each sector in the device.  
--# Optionally choose the sector size. The Auto Detect mode will work correctly on the majority of images, but if adding the data source fails you may want to try the other sector sizes.
+<ol>
+<li>Choose "Disk Image or VM File" from the data source types.
+<li>Browse to the first file in the disk image. You need to specify only the first file and Autopsy will find the rest.  <li>Choose to perform orphan file finding on FAT file systems.  This can be a time intensive process because it will require that Autopsy look at each sector in the device.  
+<li>Choose the timezone that the disk image came from.  This is most important for when adding FAT file systems because it does not store timezone information and Autopsy will not know how to normalize to UTC.
+<li>Optionally choose the sector size. The Auto Detect mode will work correctly on the majority of images, but if adding the data source fails you may want to try the other sector sizes.
+<li>Optionally enter one or more hashes for the image. These will be saved under the image metadata and can be verified using the \ref data_source_integrity_page.
+</ol>
 
 \section ds_local Adding a Local Disk
 
@@ -108,5 +111,9 @@ To add unallocated space image files:
 -# Choose "Unallocated Space Image File" from the data source types.
 -# Browse to the file.
 -# Choose whether to break the image up into chunks. Breaking the image up will give better performance since the chunks can be processed in parallel,  but there is a chance that keywords or carved files that span chunk boundaries will be missed.
+
+\section ds_logical_imager Adding an Autopsy Logical Imager Result
+
+This option allows you to add the results of a logical imager collection. See the \ref logical_imager_page page for details.
 
 */

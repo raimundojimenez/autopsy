@@ -1,7 +1,7 @@
 /*
  * Autopsy Forensic Browser
  *
- * Copyright 2011-2018 Basis Technology Corp.
+ * Copyright 2011-2019 Basis Technology Corp.
  * Contact: carrier <at> sleuthkit <dot> org
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Set;
@@ -42,9 +41,7 @@ import org.openide.nodes.Sheet;
 import org.openide.util.NbBundle;
 import org.openide.util.lookup.Lookups;
 import org.sleuthkit.autopsy.casemodule.Case;
-import org.sleuthkit.autopsy.casemodule.CasePreferences;
 import org.sleuthkit.autopsy.casemodule.NoCurrentCaseException;
-import org.sleuthkit.autopsy.core.UserPreferences;
 import static org.sleuthkit.autopsy.core.UserPreferences.hideKnownFilesInViewsTree;
 import static org.sleuthkit.autopsy.core.UserPreferences.hideSlackFilesInViewsTree;
 import org.sleuthkit.autopsy.coreutils.Logger;
@@ -64,7 +61,7 @@ import org.sleuthkit.datamodel.TskData;
 public final class FileTypesByMimeType extends Observable implements AutopsyVisitableItem {
 
     private final static Logger logger = Logger.getLogger(FileTypesByMimeType.class.getName());
-
+    private static final Set<IngestManager.IngestJobEvent> INGEST_JOB_EVENTS_OF_INTEREST = EnumSet.of(IngestManager.IngestJobEvent.COMPLETED, IngestManager.IngestJobEvent.CANCELLED);
     private final SleuthkitCase skCase;
     /**
      * The nodes of this tree will be determined dynamically by the mimetypes
@@ -100,10 +97,11 @@ public final class FileTypesByMimeType extends Observable implements AutopsyVisi
                 + TskData.TSK_DB_FILES_TYPE_ENUM.FS.ordinal() + ","
                 + TskData.TSK_DB_FILES_TYPE_ENUM.CARVED.ordinal() + ","
                 + TskData.TSK_DB_FILES_TYPE_ENUM.DERIVED.ordinal() + ","
+                + TskData.TSK_DB_FILES_TYPE_ENUM.LAYOUT_FILE.ordinal() + ","
                 + TskData.TSK_DB_FILES_TYPE_ENUM.LOCAL.ordinal()
-                + (hideSlackFilesInViewsTree() ? "" : ("," + TskData.TSK_DB_FILES_TYPE_ENUM.SLACK.ordinal())) 
+                + (hideSlackFilesInViewsTree() ? "" : ("," + TskData.TSK_DB_FILES_TYPE_ENUM.SLACK.ordinal()))
                 + "))"
-                + ( Objects.equals(CasePreferences.getGroupItemsInTreeByDataSource(), true) ? " AND data_source_obj_id = " + this.filteringDataSourceObjId() : " ")
+                + ((filteringDataSourceObjId() > 0) ? " AND data_source_obj_id = " + this.filteringDataSourceObjId() : " ")
                 + (hideKnownFilesInViewsTree() ? (" AND (known IS NULL OR known != " + TskData.FileKnown.KNOWN.getFileKnownValue() + ")") : "");
     }
 
@@ -182,7 +180,7 @@ public final class FileTypesByMimeType extends Observable implements AutopsyVisi
                 }
             }
         };
-        IngestManager.getInstance().addIngestJobEventListener(pcl);
+        IngestManager.getInstance().addIngestJobEventListener(INGEST_JOB_EVENTS_OF_INTEREST, pcl);
         Case.addEventTypeSubscriber(CASE_EVENTS_OF_INTEREST, pcl);
         populateHashMap();
     }
@@ -195,7 +193,7 @@ public final class FileTypesByMimeType extends Observable implements AutopsyVisi
     long filteringDataSourceObjId() {
         return typesRoot.filteringDataSourceObjId();
     }
-    
+
     /**
      * Method to check if the node in question is a ByMimeTypeNode which is
      * empty.
@@ -372,7 +370,7 @@ public final class FileTypesByMimeType extends Observable implements AutopsyVisi
      * Node which represents the media sub type in the By MIME type tree, the
      * media subtype is the portion of the MIME type following the /.
      */
-    class MediaSubTypeNode extends FileTypes.BGCountUpdatingNode {
+    final class MediaSubTypeNode extends FileTypes.BGCountUpdatingNode {
 
         @NbBundle.Messages({"FileTypesByMimeTypeNode.createSheet.mediaSubtype.name=Subtype",
             "FileTypesByMimeTypeNode.createSheet.mediaSubtype.displayName=Subtype",
@@ -445,25 +443,14 @@ public final class FileTypesByMimeType extends Observable implements AutopsyVisi
      * files that match MimeType which is represented by this position in the
      * tree.
      */
-    private class MediaSubTypeNodeChildren extends ChildFactory.Detachable<FileTypesKey> implements Observer {
+    private class MediaSubTypeNodeChildren extends BaseChildFactory<FileTypesKey> implements Observer {
 
         private final String mimeType;
 
         private MediaSubTypeNodeChildren(String mimeType) {
-            super();
+            super(mimeType, new ViewsKnownAndSlackFilter<>());
             addObserver(this);
             this.mimeType = mimeType;
-        }
-
-        @Override
-        protected boolean createKeys(List<FileTypesKey> list) {
-            try {
-                list.addAll(skCase.findAllFilesWhere(createBaseWhereExpr() + " AND mime_type = '" + mimeType + "'")
-                        .stream().map(f -> new FileTypesKey(f)).collect(Collectors.toList())); //NON-NLS
-            } catch (TskCoreException ex) {
-                logger.log(Level.SEVERE, "Couldn't get search results", ex); //NON-NLS
-            }
-            return true;
         }
 
         @Override
@@ -474,6 +461,27 @@ public final class FileTypesByMimeType extends Observable implements AutopsyVisi
         @Override
         protected Node createNodeForKey(FileTypesKey key) {
             return key.accept(new FileTypes.FileNodeCreationVisitor());
+        }
+
+        @Override
+        protected List<FileTypesKey> makeKeys() {
+            try {
+                return skCase.findAllFilesWhere(createBaseWhereExpr() + " AND mime_type = '" + mimeType + "'")
+                        .stream().map(f -> new FileTypesKey(f)).collect(Collectors.toList()); //NON-NLS
+            } catch (TskCoreException ex) {
+                logger.log(Level.SEVERE, "Couldn't get search results", ex); //NON-NLS
+            }
+            return Collections.emptyList();
+        }
+
+        @Override
+        protected void onAdd() {
+            // No-op
+        }
+
+        @Override
+        protected void onRemove() {
+            // No-op
         }
     }
 }

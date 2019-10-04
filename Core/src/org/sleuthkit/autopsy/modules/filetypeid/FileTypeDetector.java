@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 import org.apache.tika.Tika;
 import org.apache.tika.io.TikaInputStream;
@@ -172,8 +173,8 @@ public class FileTypeDetector {
      *
      * @return A MIME type name. If file type could not be detected, or results
      *         were uncertain, octet-stream is returned.
-     * 
- 
+     *
+     *
      */
     public String getMIMEType(AbstractFile file) {
         /*
@@ -224,7 +225,7 @@ public class FileTypeDetector {
             ReadContentInputStream stream = new ReadContentInputStream(file);
 
             try (TikaInputStream tikaInputStream = TikaInputStream.get(stream)) {
-                String tikaType = tika.detect(tikaInputStream, file.getName());
+                String tikaType = tika.detect(tikaInputStream);
 
                 /*
                  * Remove the Tika suffix from the MIME type name.
@@ -234,7 +235,38 @@ public class FileTypeDetector {
                  * Remove the optional parameter from the MIME type.
                  */
                 mimeType = removeOptionalParameter(mimeType);
+                
+                /*
+                 * If Tika recognizes the file signature, then use the file 
+                 * name to refine the type. In short, this is to exclude the 
+                 * mime types that are determined solely by file extension.
+                 * More details in JIRA-4871.
+                 */
+                if (!mimeType.equals(MimeTypes.OCTET_STREAM)) {
+                    ReadContentInputStream secondPassStream = new ReadContentInputStream(file);
+                    try (TikaInputStream secondPassTikaStream = TikaInputStream.get(secondPassStream)) {
+                        tikaType = tika.detect(secondPassTikaStream, file.getName());
+                        mimeType = tikaType.replace("tika-", ""); //NON-NLS
+                        mimeType = removeOptionalParameter(mimeType);
+                    }
+                }
 
+                /**
+                 * We cannot trust Tika's audio/mpeg mimetype. Lets verify the
+                 * first two bytes and confirm it is not 0xffff. Details in
+                 * JIRA-4659
+                 */
+                if (mimeType.contains("audio/mpeg")) {
+                    try {
+                        byte[] header = getNBytes(file, 0, 2);
+                        if (byteIs0xFF(header[0]) && byteIs0xFF(header[1])) {
+                            mimeType = MimeTypes.OCTET_STREAM;
+                        }
+                    } catch (TskCoreException ex) {
+                        //Oh well, the mimetype is what it is.
+                        logger.log(Level.WARNING, String.format("Could not verify audio/mpeg mimetype for file %s with id=%d", file.getName(), file.getId()), ex);
+                    }
+                }
             } catch (Exception ignored) {
                 /*
                  * This exception is swallowed and not logged rather than
@@ -253,6 +285,35 @@ public class FileTypeDetector {
         file.setMIMEType(mimeType);
 
         return mimeType;
+    }
+
+    /**
+     * Determine if the byte is 255 (0xFF) by examining the last 4 bits and the
+     * first 4 bits.
+     *
+     * @param x byte
+     *
+     * @return Flag indicating the byte if 0xFF
+     */
+    private boolean byteIs0xFF(byte x) {
+        return (x & 0x0F) == 0x0F && (x & 0xF0) == 0xF0;
+    }
+
+    /**
+     * Retrieves the first N bytes from a file.
+     *
+     * @param file   Abstract file to read
+     * @param offset Offset to begin reading
+     * @param n      Number of bytes to read
+     *
+     * @return Byte array of size n
+     *
+     * @throws TskCoreException
+     */
+    private byte[] getNBytes(AbstractFile file, int offset, int n) throws TskCoreException {
+        byte[] headerCache = new byte[n];
+        file.read(headerCache, offset, n);
+        return headerCache;
     }
 
     /**
@@ -280,7 +341,7 @@ public class FileTypeDetector {
      */
     private String detectUserDefinedType(AbstractFile file) {
         String retValue = null;
-        
+
         for (FileType fileType : userDefinedFileTypes) {
             if (fileType.matches(file)) {
                 retValue = fileType.getMimeType();
@@ -291,7 +352,8 @@ public class FileTypeDetector {
     }
 
     /**
-     * Determines whether or not a file matches a custom file type defined by Autopsy.
+     * Determines whether or not a file matches a custom file type defined by
+     * Autopsy.
      *
      * @param file The file to test.
      *
